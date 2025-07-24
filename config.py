@@ -78,7 +78,6 @@ DEFAULT_CONFIGS = {
     }
 }
 
-
 def load_configs() -> dict:
     if not CONFIG_FILE.exists():
         save_configs(DEFAULT_CONFIGS)

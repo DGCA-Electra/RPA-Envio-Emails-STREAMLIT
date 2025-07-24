@@ -80,14 +80,26 @@ def _format_date(date_value) -> str:
     except (ValueError, TypeError):
         return "Data Inválida"
 
+def _create_warning_html(warnings: list) -> str:
+    """Cria um bloco de alerta HTML a partir de uma lista de avisos."""
+    if not warnings:
+        return ""
+    
+    items_html = "".join(f"<li>{w}</li>" for w in warnings)
+    return f"""
+    <p style='background-color: #FFF3CD; border-left: 6px solid #FFC107; color: #856404; padding: 10px; margin-bottom: 15px;'>
+    <strong>ATENÇÃO:</strong> Foram encontrados os seguintes problemas: {items_html}
+    </p>
+    """
+
 # ==============================================================================
-# HANDLERS DE E-MAIL (LÓGICA E TEMPLATES)
+# HANDLERS DE E-MAIL (LÓGICA E TEMPLATES COMPLETOS)
 # ==============================================================================
 
 def handle_gfn001(row: pd.Series, cfg: dict, common: dict):
+    warnings = []
     if not row.get('Valor', 0) > 0:
-        print(f"AVISO GFN001 para '{row['Empresa']}': Valor é zero ou negativo. E-mail não será criado.")
-        return None
+        warnings.append("O valor do aporte é zero ou negativo. Verifique a planilha de dados.")
     
     filename_gfn = _build_filename(row['Empresa'], 'GFN001', common['month'], common['year'])
     filename_sum = _build_filename(row['Empresa'], 'SUM001', common['month'], common['year'])
@@ -96,32 +108,20 @@ def handle_gfn001(row: pd.Series, cfg: dict, common: dict):
     
     all_configs = load_configs()
     sum001_cfg = all_configs.get('SUM001')
-    if not sum001_cfg:
-        print(f"AVISO GFN001: Configuração para 'SUM001' não encontrada. Impossível anexar.")
-        return None
-        
-    sum_path = Path(sum001_cfg['pdfs_dir']) / filename_sum
+    sum_path = Path(sum001_cfg['pdfs_dir']) / filename_sum if sum001_cfg else None
+    
     attachments = [gfn_path, sum_path]
     
-    gfn_exists = gfn_path.exists()
-    sum_exists = sum_path.exists()
+    if not gfn_path.exists():
+        warnings.append(f"O anexo GFN001 não foi encontrado. Caminho procurado: {gfn_path}")
+    if not sum_path or not sum_path.exists():
+        warnings.append(f"O anexo SUM001 não foi encontrado. Caminho procurado: {sum_path}")
 
-    if not (gfn_exists and sum_exists):
-        print("="*50)
-        print(f"AVISO GFN001: Anexos não encontrados para '{row['Empresa']}'.")
-        print(f"Nome da Empresa (Original): {row['Empresa']}")
-        print(f"Nome do Arquivo GFN Procurado: {filename_gfn}")
-        print(f"Caminho Completo GFN: {gfn_path}")
-        print(f"Encontrado: {'SIM' if gfn_exists else 'NÃO'}")
-        print("-" * 20)
-        print(f"Nome do Arquivo SUM Procurado: {filename_sum}")
-        print(f"Caminho Completo SUM: {sum_path}")
-        print(f"Encontrado: {'SIM' if sum_exists else 'NÃO'}")
-        print("="*50)
-        return None
+    warning_html = _create_warning_html(warnings)
 
     subject = f"GFN001 - Aporte de Garantia Financeira à CCEE - {row['Empresa']} - {common['month_num']}/{common['year']}"
-    body = f"""<p>Prezado(a),</p>
+    body = f"""{warning_html}
+    <p>Prezado(a),</p>
     <p>Seguem anexos os relatórios GFN001 e SUM001, que apresenta a Memória de Cálculo de Garantias Financeiras, divulgados pela Câmara de Comercialização de Energia Elétrica - CCEE, com os valores para aporte de Garantias Financeiras referentes à contabilização do mês de {common['month_long']}/{common['year']}.</p>
     <p>A data para realização do aporte é <strong>{common['report_date']}</strong>. Neste dia a CCEE irá verificar se o saldo na sua conta no Departamento de Ações e Custódia (DAWC) do Banco Bradesco comtempla o valor do aporte.</p>
     <p>O saldo necessário em sua conta deverá ser maior ou igual a <strong>{_format_currency(row['Valor'])}</strong>.</p>
@@ -131,10 +131,19 @@ def handle_gfn001(row: pd.Series, cfg: dict, common: dict):
     return {'subject': subject, 'body': body, 'attachments': attachments}
 
 def handle_sum001(row: pd.Series, cfg: dict, common: dict):
+    warnings = []
     valor = row.get('Valor', 0)
-    if valor == 0: return None
+    if valor == 0:
+        warnings.append("O valor a liquidar é zero. O e-mail foi gerado para conferência.")
 
-    data_liquidacao = (_format_date(row['Data']))
+    filename = _build_filename(row['Empresa'], 'SUM001', common['month'], common['year'])
+    attachment = Path(cfg['pdfs_dir']) / filename
+    if not attachment.exists():
+        warnings.append(f"O anexo SUM001 não foi encontrado. Caminho procurado: {attachment}")
+
+    warning_html = _create_warning_html(warnings)
+    
+    data_liquidacao = _format_date(row['Data'])
     if valor > 0:
         texto1 = "crédito"
         texto2 = "ressaltamos que esse crédito está sujeito ao rateio da eventual inadimplência observada no processo de liquidação financeira da Câmara. Dessa forma, caso o valor não seja creditado na íntegra, o mesmo será incluído no próximo ciclo de contabilização e liquidação financeira, estando o agente sujeito a um novo rateio de inadimplência, conforme Resolução ANEEL nº 552, de 14/10/2002."
@@ -142,18 +151,16 @@ def handle_sum001(row: pd.Series, cfg: dict, common: dict):
         texto1 = "débito"
         texto2 = "teoricamente a conta possui o saldo necessário, visto que o aporte financeiro foi solicitado anteriormente. No entanto, a fim de evitar qualquer penalidade junto à CCEE, orientamos a verificação do saldo e também que o aporte de qualquer diferença seja efetuado com 1 (um) dia útil de antecedência da data da liquidação financeira."
 
-    filename = _build_filename(row['Empresa'], 'SUM001', common['month'], common['year'])
-    attachment = Path(cfg['pdfs_dir']) / filename
-    if not attachment.exists(): return None
-
     subject = f"SUM001 - Sumário da Liquidação Financeira - {row['Empresa']} - {common['month_num']}/{common['year']}"
-    body = f"""<p>Prezado(a),</p>
+    body = f"""{warning_html}
+    <p>Prezado(a),</p>
     <p>Segue anexo o relatório SUM001, divulgado pela Câmara de Comercialização de Energia Elétrica - CCEE, referente a liquidação financeira de <strong>{common['month_long']}/{common['year']}</strong>. No dia <strong>{data_liquidacao}</strong> há uma previsão de <strong>{texto1}</strong> na sua conta no Departamento de Ações e Custódia (DAC) do Banco Bradesco de <strong>{_format_currency(abs(valor))}</strong>.</p>
     <p>Sendo assim, {texto2}</p>
     <p>Estamos à disposição para mais informações.</p>"""
     return {'subject': subject, 'body': body, 'attachments': [attachment]}
 
 def handle_lfn001(row: pd.Series, cfg: dict, common: dict):
+    warnings = []
     situacao = row.get('Situacao')
     body = ""
     if situacao == 'Crédito':
@@ -171,16 +178,22 @@ def handle_lfn001(row: pd.Series, cfg: dict, common: dict):
         Valor Liquidado do Agente: <strong>{_format_currency(row['ValorLiquidado'])}</strong>.<br>
         Inadimplência: <strong>{_format_currency(row['ValorInadimplencia'])}</strong>.</p>
         <p>Estamos à disposição para mais informações.</p>"""
-    else: return None
-    
+    else:
+        warnings.append(f"A situação ('{situacao}') não é 'Crédito' ou 'Débito'. Verifique a planilha.")
+        body = "<p>Não foi possível gerar o corpo do e-mail. Verifique a coluna 'Situação' na planilha de dados.</p>"
+
     filename = _build_filename(row['Empresa'], 'LFN001', common['month'], common['year'])
     attachment = Path(cfg['pdfs_dir']) / filename
-    if not attachment.exists(): return None
+    if not attachment.exists():
+        warnings.append(f"O anexo LFN001 não foi encontrado. Caminho procurado: {attachment}")
+    
+    warning_html = _create_warning_html(warnings)
     
     subject = f"LFN001 - Resultado da Liquidação Financeira - {row['Empresa']} - {common['month_num']}/{common['year']}"
-    return {'subject': subject, 'body': body, 'attachments': [attachment]}
+    return {'subject': subject, 'body': warning_html + body, 'attachments': [attachment]}
 
 def handle_lfres(row: pd.Series, cfg: dict, common: dict):
+    warnings = []
     valor, data_debito, tipo_agente = row.get('Valor', 0), _format_date(row['Data']), row.get('TipoAgente')
     body = ""
     if valor != 0:
@@ -191,7 +204,8 @@ def handle_lfres(row: pd.Series, cfg: dict, common: dict):
         <p>A data do débito será no dia <strong>{data_debito}</strong>. Recomendamos que o valor seja disponibilizado com 1 (um) dia útil de antecedência.</p>
         <p>Estamos à disposição para mais informações.</p>"""
     else:
-        if tipo_agente == 'Gerador-EER': return None
+        if tipo_agente == 'Gerador-EER':
+             warnings.append("O valor para 'Gerador-EER' é zero. O e-mail foi gerado para conferência, mas normalmente não seria enviado.")
         body = f"""<p>Prezado(a),</p>
         <p>Segue anexo o relatório LFRES0{common['month_num']}, divulgado pela Câmara de Comercialização de Energia Elétrica - CCEE, referente a Liquidação Financeira de Energia de Reserva de <strong>{common['month_long']}/{common['year']}</strong>.</p>
         <p>Para esse mês os recursos disponíveis na Conta de Energia de Reserva - CONER são suficientes para o pagamento de todas as obrigações vinculadas à energia de reserva, portanto, não será realizada a cobrança do Encargo de Energia de Reserva - EER no dia <strong>{data_debito}</strong>.</p>
@@ -199,13 +213,19 @@ def handle_lfres(row: pd.Series, cfg: dict, common: dict):
     
     filename = _build_filename(row['Empresa'], f"LFRES0{common['month_num']}", common['month'], common['year'])
     attachment = Path(cfg['pdfs_dir']) / filename
-    if not attachment.exists(): return None
+    if not attachment.exists():
+        warnings.append(f"O anexo LFRES não foi encontrado. Caminho procurado: {attachment}")
+    
+    warning_html = _create_warning_html(warnings)
     
     subject = f"LFRES0{common['month_num']} - Liquidação energia de reserva à CCEE - {row['Empresa']} - {common['month_num']}/{common['year']}"
-    return {'subject': subject, 'body': body, 'attachments': [attachment]}
+    return {'subject': subject, 'body': warning_html + body, 'attachments': [attachment]}
 
 def handle_lembrete(row: pd.Series, cfg: dict, common: dict):
-    if not row.get('Valor', 0) > 0: return None
+    if not row.get('Valor', 0) > 0:
+        print(f"AVISO LEMBRETE para '{row['Empresa']}': Valor é zero ou negativo. E-mail NÃO será criado.")
+        return None
+        
     subject = f"Atenção hoje é o dia do Aporte de Garantia Financeira à CCEE - {row['Empresa']}"
     body = f"""<p>Prezado(a),</p>
     <p>Conforme informado anteriormente, hoje <strong>{common['report_date']}</strong> é a data para o Aporte de Garantia Financeira à CCEE.</p>
@@ -215,13 +235,18 @@ def handle_lembrete(row: pd.Series, cfg: dict, common: dict):
     return {'subject': subject, 'body': body, 'attachments': []}
 
 def handle_lfrcap(row: pd.Series, cfg: dict, common: dict):
+    warnings = []
     data_debito = _format_date(row['Data'])
     filename = _build_filename(row['Empresa'], 'LFRCAP001', common['month'], common['year'])
     attachment = Path(cfg['pdfs_dir']) / filename
-    if not attachment.exists(): return None
+    if not attachment.exists():
+        warnings.append(f"O anexo LFRCAP001 não foi encontrado. Caminho procurado: {attachment}")
     
+    warning_html = _create_warning_html(warnings)
+
     subject = f"LFRCAP001 - Liquidação de Reserva de Capacidade - {row['Empresa']} - {common['month_num']}/{common['year']}"
-    body = f"""<p>Prezado (a),</p>
+    body = f"""{warning_html}
+    <p>Prezado (a),</p>
     <p>Segue anexo o relatório LFRCAP001, divulgado pela Câmara de Comercialização de Energia Elétrica - CCEE, referente ao resultado da Liquidação Financeira de Reserva de Capacidade de <strong>{common['month_long']}/{common['year']}</strong>.</p>
     <p>O valor do Encargo de Reserva de Capacidade - ERCAP a ser debitado da sua conta no Departamento de Ações e Custódia (DAC) do Banco Bradesco é de <strong>{_format_currency(row['Valor'])}</strong> e deverá estar disponível independentemente do valor do Aporte de Garantia Financeira.</p>
     <p>A data do débito será no dia <strong> {data_debito}</strong>. Recomendamos que o valor seja disponibilizado com 1 (um) dia útil de antecedência.</p>
@@ -229,13 +254,18 @@ def handle_lfrcap(row: pd.Series, cfg: dict, common: dict):
     return {'subject': subject, 'body': body, 'attachments': [attachment]}
 
 def handle_rcap(row: pd.Series, cfg: dict, common: dict):
+    warnings = []
     data_debito = _format_date(row['Data'])
     filename = _build_filename(row['Empresa'], 'RCAP002', common['month'], common['year'])
     attachment = Path(cfg['pdfs_dir']) / filename
-    if not attachment.exists(): return None
+    if not attachment.exists():
+        warnings.append(f"O anexo RCAP002 não foi encontrado. Caminho procurado: {attachment}")
+
+    warning_html = _create_warning_html(warnings)
 
     subject = f"RCAP002 - Reserva de Capacidade - {row['Empresa']} - {common['month_num']}/{common['year']}"
-    body = f"""<p>Prezado (a),</p>
+    body = f"""{warning_html}
+    <p>Prezado (a),</p>
     <p>Segue anexo o relatório RCAP002, divulgado pela Câmara de Comercialização de Energia Elétrica - CCEE, referente ao resultado da Reserva de Capacidade de <strong>{common['month_long']}/{common['year']}</strong>.</p>
     <p>O valor do Encargo de Reserva de Capacidade - ERCAP a ser debitado da sua conta no Departamento de Ações e Custódia (DAC) do Banco Bradesco é de <strong>{_format_currency(row['Valor'])}</strong> e deverá estar disponível independentemente do valor do Aporte de Garantia Financeira.</p>
     <p>A data do débito será no dia <strong>{data_debito}</strong>. Recomendamos que o valor seja disponibilizado com 1 (um) dia útil de antecedência.</p>
@@ -244,7 +274,7 @@ def handle_rcap(row: pd.Series, cfg: dict, common: dict):
 
 REPORT_HANDLERS = {
     'GFN001': handle_gfn001, 'SUM001': handle_sum001, 'LFN001': handle_lfn001,
-    'LFRES': handle_lfres, 'GFN - LEMBRETE': handle_lembrete, 'LFRCAP': handle_lfrcap, 'RCAP': handle_rcap
+    'LFRES': handle_lfres, 'LEMBRETE': handle_lembrete, 'LFRCAP': handle_lfrcap, 'RCAP': handle_rcap
 }
 
 # ==============================================================================
@@ -271,9 +301,9 @@ def process_reports(report_type: str, analyst: str, month: str, year: str) -> li
     df_dados.rename(columns=column_mapping, inplace=True)
     df_contatos.rename(columns={'AGENTE': 'Empresa', 'ANALISTA': 'Analista', 'E-MAILS RELATÓRIOS CCEE': 'Email'}, inplace=True)
     
-    if 'Empresa' not in df_dados.columns: raise ReportProcessingError(f"Coluna 'Empresa' não encontrada no arquivo de dados de {report_type} após mapeamento.")
-    if 'Empresa' not in df_contatos.columns: raise ReportProcessingError("Coluna 'AGENTE' não encontrada no arquivo de contatos.")
-    if 'Analista' not in df_contatos.columns: raise ReportProcessingError("Coluna 'ANALISTA' não encontrada no arquivo de contatos.")
+    if 'Empresa' not in df_dados.columns: raise ReportProcessingError(f"Coluna 'Empresa' não encontrada nos dados de {report_type} após mapeamento.")
+    if 'Empresa' not in df_contatos.columns: raise ReportProcessingError("Coluna 'AGENTE' não encontrada nos contatos.")
+    if 'Analista' not in df_contatos.columns: raise ReportProcessingError("Coluna 'ANALISTA' não encontrada nos contatos.")
 
     df_merged = pd.merge(df_dados, df_contatos, on='Empresa', how='left')
     df_filtered = df_merged[df_merged['Analista'] == analyst].copy()
@@ -283,7 +313,7 @@ def process_reports(report_type: str, analyst: str, month: str, year: str) -> li
 
     meses_map = {m.upper(): f"{i+1:02d}" for i, m in enumerate(MESES)}
     report_date = ""
-    if report_type in ['GFN001', 'GFN - LEMBRETE']:
+    if report_type in ['GFN001', 'LEMBRETE']:
         try:
             df_data_raw = pd.read_excel(Path(cfg['excel_dados']), sheet_name=cfg['sheet_dados'], header=None, usecols=[0])
             report_date = _format_date(str(df_data_raw.iloc[23, 0]).replace("Data do Aporte de Garantias:", "").strip())
@@ -311,7 +341,7 @@ def process_reports(report_type: str, analyst: str, month: str, year: str) -> li
             assinatura = f"<br><br><p>Atenciosamente,</p><p><strong>{analyst}</strong></p>"
             email_data['body'] += assinatura
             _create_outlook_draft(row['Email'], **email_data)
-            anexos = len(email_data.get('attachments', []))
+            anexos = sum(1 for p in email_data.get('attachments', []) if p and p.exists())
         
         results.append({
             'empresa': row['Empresa'],
