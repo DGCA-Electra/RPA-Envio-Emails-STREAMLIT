@@ -1,0 +1,5 @@
+# 1. Ative o ambiente virtual
+.\venv\Scripts\Activate.ps1
+
+# 2. Rode a aplicação
+streamlit run app.py
