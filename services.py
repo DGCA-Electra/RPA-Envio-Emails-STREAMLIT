@@ -283,40 +283,74 @@ REPORT_HANDLERS = {
 # ==============================================================================
 
 # Função para montar caminhos automaticamente
+import os
+
 def montar_caminhos(tipo, ano, mes, raiz):
-    mes_num = f"{int(mes):02d}" if mes.isdigit() else mes
+    """
+    Monta automaticamente os caminhos dos arquivos baseado nos parâmetros.
+    Extrai padrões do config_relatorios.json para gerar caminhos dinâmicos.
+    """
+    # Mapeamento de meses para formato numérico
+    meses_map = {
+        'JANEIRO': '01', 'FEVEREIRO': '02', 'MARÇO': '03', 'ABRIL': '04',
+        'MAIO': '05', 'JUNHO': '06', 'JULHO': '07', 'AGOSTO': '08',
+        'SETEMBRO': '09', 'OUTUBRO': '10', 'NOVEMBRO': '11', 'DEZEMBRO': '12'
+    }
+    
+    mes_num = meses_map.get(mes.upper(), '01')
     ano_mes = f"{ano}{mes_num}"
-    # Ajuste os nomes dos arquivos e pastas conforme o padrão real dos seus arquivos
-    if tipo == "GFN001":
-        excel_dados = os.path.join(raiz, ano, ano_mes, "Garantia Financeira", "GFN003 - Excel", f"ELECTRA_ENERGY_GFN003_{mes.lower()}_{ano[-2:]}.xlsx")
-        excel_contatos = os.path.join(raiz, ano, ano_mes, "..", "..", "..", "DGC", "Macro", "Contatos de E-mail para Macros.xlsx")
-        pdfs_dir = os.path.join(raiz, ano, ano_mes, "Garantia Financeira", "GFN001")
-    elif tipo == "SUM001":
-        excel_dados = os.path.join(raiz, ano, ano_mes, "Garantia Financeira", "GFN003 - Excel", f"ELECTRA_ENERGY_GFN003_{mes.lower()}_{ano[-2:]}.xlsx")
-        excel_contatos = os.path.join(raiz, ano, ano_mes, "..", "..", "..", "DGC", "Macro", "Contatos de E-mail para Macros.xlsx")
-        pdfs_dir = os.path.join(raiz, ano, ano_mes, "Sumário", "SUM001 - Memória_de_Cálculo")
+    mes_abrev = mes.lower()[:3]  # jun, mai, abr, etc.
+    ano_2dig = ano[-2:]  # 25, 26, etc.
+    
+    # Padrões baseados no config_relatorios.json
+    if tipo in ["GFN001", "SUM001", "LEMBRETE"]:
+        pasta_base = "Garantia Financeira"
+        subpasta = "GFN003 - Excel"
+        nome_arquivo = f"ELECTRA_ENERGY_GFN003_{mes_abrev}_{ano_2dig}.xlsx"
+        excel_dados = os.path.join(raiz, ano, ano_mes, pasta_base, subpasta, nome_arquivo)
+        
+        if tipo == "GFN001":
+            pdfs_dir = os.path.join(raiz, ano, ano_mes, pasta_base, "GFN001")
+        elif tipo == "SUM001":
+            pdfs_dir = os.path.join(raiz, ano, ano_mes, "Sumário", "SUM001 - Memória_de_Cálculo")
+        else:  # LEMBRETE
+            pdfs_dir = os.path.join(raiz, ano, ano_mes, pasta_base, "GFN001")
+            
     elif tipo == "LFN001":
-        excel_dados = os.path.join(raiz, ano, ano_mes, "Liquidação Financeira", "LFN004", f"ELECTRA ENERGY LFN004 {mes.lower()}.{ano[-2:]}.xlsx")
-        excel_contatos = os.path.join(raiz, ano, ano_mes, "..", "..", "..", "DGC", "Macro", "Contatos de E-mail para Macros.xlsx")
-        pdfs_dir = os.path.join(raiz, ano, ano_mes, "Liquidação Financeira", "LFN001")
+        pasta_base = "Liquidação Financeira"
+        subpasta = "LFN004"
+        nome_arquivo = f"ELECTRA ENERGY LFN004 {mes_abrev}.{ano_2dig}.xlsx"
+        excel_dados = os.path.join(raiz, ano, ano_mes, pasta_base, subpasta, nome_arquivo)
+        pdfs_dir = os.path.join(raiz, ano, ano_mes, pasta_base, "LFN001")
+        
     elif tipo == "LFRES":
-        excel_dados = os.path.join(raiz, ano, ano_mes, "Liquidação da Energia de Reserva", "LFRES002", f"ELECTRA_ENERGY_LFRES002_{mes.lower()}_{ano[-2:]}.xlsx")
-        excel_contatos = os.path.join(raiz, ano, ano_mes, "..", "..", "..", "DGC", "Macro", "Contatos de E-mail para Macros.xlsx")
-        pdfs_dir = os.path.join(raiz, ano, ano_mes, "Liquidação da Energia de Reserva", "LFRES001")
-    elif tipo == "LEMBRETE":
-        excel_dados = os.path.join(raiz, ano, ano_mes, "Garantia Financeira", "GFN003 - Excel", f"ELECTRA_ENERGY_GFN003_{mes.lower()}_{ano[-2:]}.xlsx")
-        excel_contatos = os.path.join(raiz, ano, ano_mes, "..", "..", "..", "DGC", "Macro", "Contatos de E-mail para Macros.xlsx")
-        pdfs_dir = os.path.join(raiz, ano, ano_mes, "Garantia Financeira", "GFN001")
+        pasta_base = "Liquidação da Energia de Reserva"
+        subpasta = "LFRES002"
+        nome_arquivo = f"ELECTRA_ENERGY_LFRES002_{mes_abrev}_{ano_2dig}.xlsx"
+        excel_dados = os.path.join(raiz, ano, ano_mes, pasta_base, subpasta, nome_arquivo)
+        pdfs_dir = os.path.join(raiz, ano, ano_mes, pasta_base, "LFRES001")
+        
     elif tipo == "LFRCAP":
-        excel_dados = os.path.join(raiz, ano, ano_mes, "Liquidação de Reserva de Capacidade", "LFRCAP002", f"ELECTRA_ENERGY_LFRCAP002_{mes.lower()}_{ano[-2:]}.xlsx")
-        excel_contatos = os.path.join(raiz, ano, ano_mes, "..", "..", "..", "DGC", "Macro", "Contatos de E-mail para Macros.xlsx")
-        pdfs_dir = os.path.join(raiz, ano, ano_mes, "Liquidação de Reserva de Capacidade", "LFRCAP001")
+        pasta_base = "Liquidação de Reserva de Capacidade"
+        subpasta = "LFRCAP002"
+        nome_arquivo = f"ELECTRA_ENERGY_LFRCAP002_{mes_abrev}_{ano_2dig}.xlsx"
+        excel_dados = os.path.join(raiz, ano, ano_mes, pasta_base, subpasta, nome_arquivo)
+        pdfs_dir = os.path.join(raiz, ano, ano_mes, pasta_base, "LFRCAP001")
+        
     elif tipo == "RCAP":
-        excel_dados = os.path.join(raiz, ano, ano_mes, "Reserva de Capacidade", "RCAP002 - Consulta Dinamica", f"RCAP002 {mes.lower()}.{ano[-2:]}.xlsx")
-        excel_contatos = os.path.join(raiz, ano, ano_mes, "..", "..", "..", "DGC", "Macro", "Contatos de E-mail para Macros.xlsx")
-        pdfs_dir = os.path.join(raiz, ano, ano_mes, "Reserva de Capacidade", "RCAP002")
+        pasta_base = "Reserva de Capacidade"
+        subpasta = "RCAP002 - Consulta Dinamica"
+        nome_arquivo = f"RCAP002 {mes_abrev}.{ano_2dig}.xlsx"
+        excel_dados = os.path.join(raiz, ano, ano_mes, pasta_base, subpasta, nome_arquivo)
+        pdfs_dir = os.path.join(raiz, ano, ano_mes, pasta_base, "RCAP002")
+        
     else:
-        excel_dados = excel_contatos = pdfs_dir = ""
+        excel_dados = ""
+        pdfs_dir = ""
+    
+    # Arquivo de contatos é sempre o mesmo
+    excel_contatos = os.path.join(raiz, ano, ano_mes, "..", "..", "..", "DGC", "Macro", "Contatos de E-mail para Macros.xlsx")
+    
     return excel_dados, excel_contatos, pdfs_dir
 
 def process_reports(report_type: str, analyst: str, month: str, year: str) -> list:
