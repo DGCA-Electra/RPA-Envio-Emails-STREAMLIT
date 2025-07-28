@@ -121,14 +121,16 @@ def handle_gfn001(row: pd.Series, cfg: dict, common: dict):
     warning_html = _create_warning_html(warnings)
 
     subject = f"GFN001 - Aporte de Garantia Financeira à CCEE - {row['Empresa']} - {common['month_num']}/{common['year']}"
-    body = f"""{warning_html}
+    body = f"""
+    {warning_html}
     <p>Prezado(a),</p>
     <p>Seguem anexos os relatórios GFN001 e SUM001, que apresenta a Memória de Cálculo de Garantias Financeiras, divulgados pela Câmara de Comercialização de Energia Elétrica - CCEE, com os valores para aporte de Garantias Financeiras referentes à contabilização do mês de {common['month_long']}/{common['year']}.</p>
     <p>A data para realização do aporte é <strong>{common['report_date']}</strong>. Neste dia a CCEE irá verificar se o saldo na sua conta no Departamento de Ações e Custódia (DAWC) do Banco Bradesco comtempla o valor do aporte.</p>
     <p>O saldo necessário em sua conta deverá ser maior ou igual a <strong>{_format_currency(row['Valor'])}</strong>.</p>
     <p>Ressaltamos que os montantes de Garantias Financeiras refletem as premissas previstas na Resolução Normativa ANEEL 957/2021.</p>
     <p>O Quadro 3 - Valor  da Garantia Financeira Avulsa, do GFN001, representa o montante a ser aportado pelo agente na data mencionada, sendo sua composição: ((Total de Garantia Financeira Necessária Preliminar) - (Valor do Ajuste de Garantia Financeira)) * 5%.</p>
-    <p>Estamos à disposição para mais informações.</p>"""
+    <p>Estamos à disposição para mais informações.</p>
+    """
     return {'subject': subject, 'body': body, 'attachments': attachments}
 
 def handle_sum001(row: pd.Series, cfg: dict, common: dict):
