@@ -349,7 +349,8 @@ def montar_caminhos(tipo, ano, mes, raiz):
         pdfs_dir = ""
     
     # Arquivo de contatos é sempre o mesmo
-    excel_contatos = os.path.join(raiz, ano, ano_mes, "..", "..", "..", "DGC", "Macro", "Contatos de E-mail para Macros.xlsx")
+    import streamlit as st
+    excel_contatos = st.session_state.get('contratos_email_path', '')
     
     return excel_dados, excel_contatos, pdfs_dir
 
