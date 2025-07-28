@@ -245,6 +245,10 @@ def main():
     raiz_sharepoint = f"C:/Users/{st.session_state['login_usuario']}/ELECTRA COMERCIALIZADORA DE ENERGIA S.A/GE - ECE/DGCA/DGA/CCEE/Relatórios CCEE"
     st.session_state['raiz_sharepoint'] = raiz_sharepoint
 
+    # Montar caminho do arquivo Contratos de E-mail automaticamente
+    contratos_email_path = f"C:/Users/{st.session_state['login_usuario']}/ELECTRA COMERCIALIZADORA DE ENERGIA S.A/GE - ECE/DGCA/DGC/Macro/Contatos de E-mail para Macros.xlsx"
+    st.session_state['contratos_email_path'] = contratos_email_path
+
     # Se for admin, mostra navegação
     if st.session_state['login_usuario'] == 'malik.mourad':
         st.sidebar.title("Navegação")
