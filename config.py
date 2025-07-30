@@ -87,7 +87,7 @@ DEFAULT_CONFIGS = {
         "sheet_dados": "Sheet1",
         "sheet_contatos": "Planilha1",
         "header_row": 4,
-        "data_columns": "Agente:Empresa,Data:Data,Valor do Débito (R$):Valor",
+        "data_columns": "Sigla do Agente:Empresa,\"(S) ERCAP_C am\":Valor,Data:Data",
         "path_template": {
             "excel_dados": "{sharepoint_root}/{ano}/{ano_mes}/Reserva de Capacidade/RCAP002 - Consulta Dinamica/RCAP002 {mes_abrev}.{ano_2dig}.xlsx",
             "pdfs_dir": "{sharepoint_root}/{ano}/{ano_mes}/Reserva de Capacidade/RCAP002"
