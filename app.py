@@ -3,12 +3,14 @@ import pandas as pd
 import config
 import services
 import logging
+from typing import Dict, Any, Optional
 
 # Configuração básica de logging
 logging.basicConfig(filename='app.log', level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
 
 # Função para registrar logs
-def registrar_log(mensagem):
+def registrar_log(mensagem: str) -> None:
+    """Registra uma mensagem no log."""
     logging.info(mensagem)
 
 st.set_page_config(
@@ -18,7 +20,8 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-def show_main_page():
+def show_main_page() -> None:
+    """Renderiza a página principal de envio de relatórios."""
     st.title("📊 Envio de Relatórios CCEE - DGCA")
     
     # Mostrar indicador de modo de teste se estiver ativo
@@ -40,33 +43,141 @@ def show_main_page():
             mes = st.selectbox("Mês", options=config.MESES, key="sb_mes")
         with col3:
             ano = st.selectbox("Ano", options=config.ANOS, key="sb_ano")
-        submitted = st.form_submit_button("Pré-visualizar Dados")
+        
+        # Dois botões separados
+        col1, col2 = st.columns(2)
+        with col1:
+            preview_submitted = st.form_submit_button("👁️ Visualizar Dados", use_container_width=True)
+        with col2:
+            send_submitted = st.form_submit_button("📧 Enviar E-mails", use_container_width=True)
 
     # Usar analista de teste se estiver ativo, senão usar o login do usuário
     analista = st.session_state.get('analista_teste', st.session_state.get('login_usuario'))
+    login_usuario = st.session_state.get('login_usuario')
 
-    if submitted:
+    if not login_usuario:
+        st.error("❌ Login do usuário não encontrado. Faça login novamente.")
+        return
+
+    # Processar visualização de dados
+    if preview_submitted:
+        with st.spinner("Carregando dados para visualização... Por favor, aguarde."):
+            try:
+                df_filtered, df_preview = services.preview_dados(
+                    report_type=tipo, 
+                    analyst=analista, 
+                    month=mes, 
+                    year=ano,
+                    login_usuario=login_usuario
+                )
+                st.session_state.preview_data = df_filtered
+                st.session_state.form_data = {'tipo': tipo, 'analista': analista, 'mes': mes, 'ano': ano}
+                
+                st.success(f'✅ Dados carregados com sucesso! {len(df_filtered)} empresas encontradas para {analista}.')
+
+            except services.ReportProcessingError as e:
+                st.error(f"❌ Erro de processamento: {e}")
+            except FileNotFoundError as e:
+                st.error(f"❌ Arquivo não encontrado: {e}")
+                st.info("💡 Verifique se os caminhos dos arquivos estão corretos e se os arquivos existem.")
+            except ValueError as e:
+                st.error(f"❌ Erro de configuração: {e}")
+                st.info("💡 Verifique as configurações do relatório na aba 'Configurações'.")
+            except Exception as e:
+                st.error(f"❌ Erro inesperado: {e}")
+                registrar_log(f"Erro inesperado em preview: {e}")
+
+    # Processar envio de e-mails
+    if send_submitted:
+        if 'preview_data' not in st.session_state:
+            st.error("❌ Primeiro visualize os dados antes de enviar os e-mails.")
+            return
+            
         with st.spinner("Processando relatórios e gerando e-mails... Por favor, aguarde."):
             try:
                 results = services.process_reports(
-                    report_type=tipo, analyst=analista, month=mes, year=ano
+                    report_type=tipo, 
+                    analyst=analista, 
+                    month=mes, 
+                    year=ano,
+                    login_usuario=login_usuario
                 )
                 st.session_state.results = results
-                st.session_state.form_data = {'tipo': tipo, 'analista': analista, 'mes': mes, 'ano': ano}
                 
                 created_count = results[-1]['created_count'] if results else 0
-                st.success(f'{created_count} de {len(results)} e-mails foram gerados com sucesso! Verifique seu Outlook.')
+                st.success(f'✅ {created_count} de {len(results)} e-mails foram gerados com sucesso! Verifique seu Outlook.')
 
-            except (FileNotFoundError, services.ReportProcessingError, Exception) as e:
-                st.error(f"Ocorreu um erro: {e}")
-                if 'results' in st.session_state:
-                    del st.session_state.results
+            except services.ReportProcessingError as e:
+                st.error(f"❌ Erro de processamento: {e}")
+            except FileNotFoundError as e:
+                st.error(f"❌ Arquivo não encontrado: {e}")
+                st.info("💡 Verifique se os caminhos dos arquivos estão corretos e se os arquivos existem.")
+            except ValueError as e:
+                st.error(f"❌ Erro de configuração: {e}")
+                st.info("💡 Verifique as configurações do relatório na aba 'Configurações'.")
+            except Exception as e:
+                st.error(f"❌ Erro inesperado: {e}")
+                registrar_log(f"Erro inesperado em envio: {e}")
 
+    # Mostrar dados de visualização
+    if 'preview_data' in st.session_state and st.session_state.preview_data is not None:
+        df_filtered = st.session_state.preview_data
+        form = st.session_state.form_data
+        
+        st.header(f"📈 Dados para {form['tipo']} - {form['mes']}/{form['ano']} - {form['analista']}")
+        
+        total_empresas = len(df_filtered)
+        
+        col1, col2 = st.columns(2)
+        col1.metric("Empresas Encontradas", total_empresas)
+        col2.metric("Analista", form['analista'])
+
+        # Preparar dados para exibição
+        df_to_show = df_filtered.copy()
+        
+        # Renomear colunas para exibição
+        display_columns = {
+            'Empresa': 'Empresa',
+            'Email': 'E-mail',
+            'Valor': 'Valor'
+        }
+        
+        # Para SUM001, usar a coluna de data calculada
+        if form['tipo'] == 'SUM001' and 'Data_Debito_Credito' in df_to_show.columns:
+            display_columns['Data_Debito_Credito'] = 'Data Débito/Crédito'
+        else:
+            # Para outros relatórios, usar a coluna Data padrão
+            if 'Data' in df_to_show.columns:
+                display_columns['Data'] = 'Data'
+            else:
+                # Se não houver coluna Data, criar uma coluna vazia
+                df_to_show['Data'] = 'Data não informada'
+                display_columns['Data'] = 'Data'
+        
+        # Selecionar apenas as colunas que queremos mostrar
+        columns_to_show = list(display_columns.keys())
+        df_display = df_to_show[columns_to_show].copy()
+        
+        # Renomear colunas para exibição
+        df_display.columns = [display_columns[col] for col in df_display.columns]
+        
+        # Formatar valores monetários
+        if 'Valor' in df_display.columns:
+            df_display['Valor'] = df_display['Valor'].apply(lambda x: services._format_currency(x) if pd.notna(x) else 'R$ 0,00')
+        
+        st.dataframe(df_display, use_container_width=True, hide_index=True)
+        
+        # Botão para limpar dados de visualização
+        if st.button("🗑️ Limpar Visualização", key="limpar_preview"):
+            del st.session_state.preview_data
+            st.rerun()
+
+    # Mostrar resultados de envio
     if 'results' in st.session_state and st.session_state.results:
         results = st.session_state.results
         form = st.session_state.form_data
         
-        st.header(f"📈 Resultado para {form['tipo']} - {form['mes']}/{form['ano']} - {form['analista']}")
+        st.header(f"📤 Resultado do Envio - {form['tipo']} - {form['mes']}/{form['ano']} - {form['analista']}")
         
         total_processed = len(results)
         total_created = results[-1]['created_count'] if results else 0
@@ -81,8 +192,13 @@ def show_main_page():
             'email': 'E-mail', 'anexos_count': 'Anexos'
         })
         st.dataframe(df_to_show, use_container_width=True, hide_index=True)
+        
+        # Botão para limpar resultados
+        if st.button("🗑️ Limpar Resultados", key="limpar_results"):
+            del st.session_state.results
+            st.rerun()
 
-def show_config_page():
+def show_config_page() -> None:
     """Renderiza a página de configurações."""
     st.title("⚙️ Configurações do Sistema")
     
@@ -99,76 +215,70 @@ def show_config_page():
         tab_names = list(current_configs.keys())
         tabs = st.tabs(tab_names)
         
-        for i, (tipo, cfg) in enumerate(current_configs.items()):
+        for i, (report_type, config_data) in enumerate(current_configs.items()):
             with tabs[i]:
-                st.markdown(f"**Configurações para: {tipo}**")
+                st.subheader(f"Configurações para {report_type}")
                 
-                # Estrutura das planilhas
-                st.markdown("##### 📊 Estrutura das Planilhas")
-                col1, col2, col3 = st.columns(3)
+                # Campos de configuração
+                col1, col2 = st.columns(2)
+                
                 with col1:
-                    cfg['sheet_dados'] = st.text_input(
-                        "Aba Dados", 
-                        value=cfg.get('sheet_dados', ''), 
-                        key=f"sheetd_{tipo}",
+                    sheet_dados = st.text_input(
+                        "Aba dos Dados",
+                        value=config_data.get('sheet_dados', ''),
+                        key=f"sheet_dados_{report_type}",
                         help="Nome da aba que contém os dados do relatório"
                     )
+                    
+                    sheet_contatos = st.text_input(
+                        "Aba dos Contatos",
+                        value=config_data.get('sheet_contatos', ''),
+                        key=f"sheet_contatos_{report_type}",
+                        help="Nome da aba que contém os contatos"
+                    )
+                
                 with col2:
-                    cfg['sheet_contatos'] = st.text_input(
-                        "Aba Contatos", 
-                        value=cfg.get('sheet_contatos', ''), 
-                        key=f"sheetc_{tipo}",
-                        help="Nome da aba que contém os contatos de email"
+                    header_row = st.number_input(
+                        "Linha do Cabeçalho",
+                        value=int(config_data.get('header_row', 0)),
+                        min_value=0,
+                        key=f"header_row_{report_type}",
+                        help="Número da linha que contém os cabeçalhos das colunas"
                     )
-                with col3:
-                    cfg['header_row'] = st.number_input(
-                        "Linha Cabeçalho", 
-                        min_value=0, 
-                        value=cfg.get('header_row', 0), 
-                        key=f"header_{tipo}",
-                        help="Número da linha onde está o cabeçalho (inicia em 0)"
-                    )
-
+                
                 # Mapeamento de colunas
-                st.markdown("##### 🗺️ Mapeamento de Colunas")
-                exemplos_mapeamento = {
-                    "GFN001": "Agente:Empresa,Garantia Avulsa (R$):Valor",
-                    "SUM001": "Agente:Empresa,Garantia Avulsa (R$):Valor",
-                    "LFN001": "Agente:Empresa,Débito/Crédito:Situacao,Valor a Liquidar (R$):ValorLiquidacao,Valor Liquidado (R$):ValorLiquidado,Inadimplência (R$):ValorInadimplencia",
-                    "LFRES": "Agente:Empresa,Data do Débito:Data,Valor do Débito (R$):Valor,Tipo Agente:TipoAgente",
-                    "LEMBRETE": "Agente:Empresa,Garantia Avulsa (R$):Valor",
-                    "LFRCAP": "Agente:Empresa,Data do Débito:Data,Valor do Débito (R$):Valor",
-                    "RCAP": "Agente:Empresa,Data:Data,Valor do Débito (R$):Valor"
-                }
-                exemplo = exemplos_mapeamento.get(tipo, "NomeNoExcel:NomePadrao,...")
-                st.caption(f"💡 Exemplo: {exemplo}")
-                cfg['data_columns'] = st.text_area(
-                    "Mapeamento de Colunas", 
-                    value=cfg.get('data_columns', ''), 
-                    key=f"map_{tipo}", 
-                    height=80,
-                    help="Formato: NomeNoExcel:NomePadrao,NomeNoExcel2:NomePadrao2"
+                data_columns = st.text_area(
+                    "Mapeamento de Colunas",
+                    value=config_data.get('data_columns', ''),
+                    height=100,
+                    key=f"data_columns_{report_type}",
+                    help="Formato: NomeNoExcel:NomePadrão,OutraColuna:OutroNome"
                 )
+                
+                # Atualizar configuração
+                current_configs[report_type].update({
+                    'sheet_dados': sheet_dados,
+                    'sheet_contatos': sheet_contatos,
+                    'header_row': header_row,
+                    'data_columns': data_columns
+                })
+        
+        # Botão de salvar
+        if st.form_submit_button("💾 Salvar Configurações"):
+            try:
+                config.save_configs(current_configs)
+                st.success("✅ Configurações salvas com sucesso!")
+            except Exception as e:
+                st.error(f"❌ Erro ao salvar configurações: {e}")
+                registrar_log(f"Erro ao salvar configurações: {e}")
 
-        # Botão de salvar centralizado
-        st.markdown("---")
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            submitted = st.form_submit_button("💾 Salvar Todas as Configurações", use_container_width=True)
-
-    if submitted:
-        config.save_configs(current_configs)
-        st.success("✅ Configurações salvas com sucesso!")
-        st.balloons()
-
-def show_test_page():
-    """Renderiza a página de teste para administrador."""
-    st.title("🧪 Teste de Envio como Outros Analistas")
+def show_test_page() -> None:
+    """Renderiza a página de teste de analistas."""
+    st.title("🧪 Teste de Analistas")
     
-    # Informações principais
-    st.info("Como administrador, você pode testar o envio de relatórios como se fosse outro analista, sem precisar fazer logout.")
+    st.info("Use esta página para testar o sistema como se fosse outro analista. Isso é útil para verificar se os dados estão sendo carregados corretamente para diferentes analistas.")
     
-    # Status do teste atual
+    # Mostrar status atual
     if st.session_state.get('analista_teste'):
         st.success(f"✅ **Modo de teste ativo:** {st.session_state['analista_teste']}")
     
@@ -217,13 +327,49 @@ def show_test_page():
                 st.success("✅ Cache limpo. Faça login novamente.")
                 st.rerun()
 
-def main():
+def validate_login(login_usuario: str) -> bool:
+    """
+    Valida se o login do usuário é válido.
+    
+    Args:
+        login_usuario: Login do usuário
+        
+    Returns:
+        True se o login é válido, False caso contrário
+    """
+    if not login_usuario or not login_usuario.strip():
+        return False
+    
+    # Verificar se o login tem formato válido (nome.sobrenome)
+    if '.' not in login_usuario:
+        return False
+    
+    return True
+
+def get_user_paths(login_usuario: str) -> Dict[str, str]:
+    """
+    Obtém os caminhos do usuário usando a nova função do config.
+    
+    Args:
+        login_usuario: Login do usuário
+        
+    Returns:
+        Dicionário com os caminhos do usuário
+    """
+    try:
+        return config.get_user_paths(login_usuario)
+    except Exception as e:
+        st.error(f"Erro ao obter caminhos do usuário: {e}")
+        return {}
+
+def main() -> None:
+    """Função principal da aplicação."""
     st.image("static/logo.png", width=250)
 
     # Tela de login
     if 'login_usuario' not in st.session_state or not st.session_state['login_usuario']:
         with st.form("login_form"):
-            st.subheader("Login")
+            st.subheader("🔐 Login")
             login_usuario = st.text_input(
                 "Informe seu login de rede (ex: nome.sobrenome)",
                 value='',
@@ -231,29 +377,45 @@ def main():
                 help="Digite apenas o seu login de rede, sem @dominio."
             )
             submitted = st.form_submit_button("Entrar")
+            
         if submitted and login_usuario:
-            st.session_state['login_usuario'] = login_usuario.strip().lower()
-            st.rerun()
+            login_clean = login_usuario.strip().lower()
+            
+            if not validate_login(login_clean):
+                st.error("❌ Formato de login inválido. Use o formato: nome.sobrenome")
+            else:
+                st.session_state['login_usuario'] = login_clean
+                
+                # Obter e validar caminhos do usuário
+                user_paths = get_user_paths(login_clean)
+                if user_paths:
+                    st.session_state['raiz_sharepoint'] = user_paths.get('raiz_sharepoint', '')
+                    st.session_state['contratos_email_path'] = user_paths.get('contratos_email_path', '')
+                    st.rerun()
+                else:
+                    st.error("❌ Não foi possível configurar os caminhos do usuário.")
+        
         st.stop()
 
     # Botão de logout com key único
-    if st.sidebar.button("Logout", key="logout_btn"):
+    if st.sidebar.button("🚪 Logout", key="logout_btn"):
         st.session_state['login_usuario'] = ''
         st.rerun()
 
-    # Montar diretório raiz do SharePoint automaticamente
-    raiz_sharepoint = f"C:/Users/{st.session_state['login_usuario']}/ELECTRA COMERCIALIZADORA DE ENERGIA S.A/GE - ECE/DGCA/DGA/CCEE/Relatórios CCEE"
-    st.session_state['raiz_sharepoint'] = raiz_sharepoint
-
-    # Montar caminho do arquivo Contratos de E-mail automaticamente
-    contratos_email_path = f"C:/Users/{st.session_state['login_usuario']}/ELECTRA COMERCIALIZADORA DE ENERGIA S.A/GE - ECE/DGCA/DGC/Macro/Contatos de E-mail para Macros.xlsx"
-    st.session_state['contratos_email_path'] = contratos_email_path
+    # Verificar se os caminhos estão configurados
+    login_usuario = st.session_state.get('login_usuario')
+    if not st.session_state.get('raiz_sharepoint') or not st.session_state.get('contratos_email_path'):
+        user_paths = get_user_paths(login_usuario)
+        if user_paths:
+            st.session_state['raiz_sharepoint'] = user_paths.get('raiz_sharepoint', '')
+            st.session_state['contratos_email_path'] = user_paths.get('contratos_email_path', '')
 
     # Se for admin, mostra navegação
     if st.session_state['login_usuario'] == 'malik.mourad':
-        st.sidebar.title("Navegação")
+        st.sidebar.title("🧭 Navegação")
         page_options = ["Envio de Relatórios", "Configurações", "Teste de Analistas"]
         page = st.sidebar.radio("Escolha a página:", page_options, label_visibility="hidden", key="sidebar_radio")
+        
         if page == "Envio de Relatórios":
             show_main_page()
         elif page == "Configurações":

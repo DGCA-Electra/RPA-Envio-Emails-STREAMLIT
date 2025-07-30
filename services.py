@@ -4,9 +4,10 @@ import pandas as pd
 from pathlib import Path
 import sys
 import pythoncom
-from datetime import timedelta
+from datetime import timedelta, datetime
 import re
 import os
+from typing import Dict, List, Any, Optional, Tuple
 
 try:
     import win32com.client as win32
@@ -14,18 +15,34 @@ try:
 except ImportError:
     WIN32_AVAILABLE = False
 
-from config import load_configs, MESES
+from config import load_configs, MESES, build_report_paths, get_user_paths
 
 class ReportProcessingError(Exception):
     """Exceção customizada para erros de processamento."""
+    pass
+
+class PathNotFoundError(Exception):
+    """Exceção para quando um caminho não é encontrado."""
+    pass
+
+class ConfigurationError(Exception):
+    """Exceção para erros de configuração."""
     pass
 
 # ==============================================================================
 # FUNÇÕES AUXILIARES
 # ==============================================================================
 
-def _create_outlook_draft(recipient: str, subject: str, body: str, attachments: list):
-    """Cria e exibe um rascunho de e-mail no Outlook."""
+def _create_outlook_draft(recipient: str, subject: str, body: str, attachments: List[Path]) -> None:
+    """
+    Cria e exibe um rascunho de e-mail no Outlook.
+    
+    Args:
+        recipient: Destinatário do e-mail
+        subject: Assunto do e-mail
+        body: Corpo do e-mail em HTML
+        attachments: Lista de caminhos para anexos
+    """
     if not WIN32_AVAILABLE:
         print("--- MODO DE SIMULAÇÃO ---")
         print(f"PARA: {recipient}")
@@ -56,7 +73,18 @@ def _create_outlook_draft(recipient: str, subject: str, body: str, attachments: 
         pythoncom.CoUninitialize()
 
 def _build_filename(company: str, report_type: str, month: str, year: str) -> str:
-    """Constrói o nome do arquivo PDF padrão: EMPRESA_TIPO_MES_ANO.pdf"""
+    """
+    Constrói o nome do arquivo PDF padrão: EMPRESA_TIPO_MES_ANO.pdf
+    
+    Args:
+        company: Nome da empresa
+        report_type: Tipo do relatório
+        month: Mês
+        year: Ano
+        
+    Returns:
+        Nome do arquivo PDF
+    """
     company_clean = company.strip()
     company_part = re.sub(r'[\s_-]+', '_', company_clean).upper()
     
@@ -66,16 +94,32 @@ def _build_filename(company: str, report_type: str, month: str, year: str) -> st
     
     return f"{company_part}_{report_part}_{month_part}_{year_part}.pdf"
 
-def _format_currency(value) -> str:
-    """Formata um valor numérico como moeda brasileira."""
+def _format_currency(value: Any) -> str:
+    """
+    Formata um valor numérico como moeda brasileira.
+    
+    Args:
+        value: Valor a ser formatado
+        
+    Returns:
+        String formatada como moeda brasileira
+    """
     try:
         val = float(value)
         return f"R$ {val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     except (ValueError, TypeError):
         return "R$ 0,00"
 
-def _format_date(date_value) -> str:
-    """Formata um valor de data para dd/mm/YYYY, tratando possíveis erros."""
+def _format_date(date_value: Any) -> str:
+    """
+    Formata um valor de data para dd/mm/YYYY, tratando possíveis erros.
+    
+    Args:
+        date_value: Valor de data a ser formatado
+        
+    Returns:
+        String formatada da data ou mensagem de erro
+    """
     try:
         if date_value is None or pd.isna(date_value):
             return "Data não informada"
@@ -83,8 +127,16 @@ def _format_date(date_value) -> str:
     except (ValueError, TypeError):
         return "Data Inválida"
 
-def _create_warning_html(warnings: list) -> str:
-    """Cria um bloco de alerta HTML a partir de uma lista de avisos."""
+def _create_warning_html(warnings: List[str]) -> str:
+    """
+    Cria um bloco de alerta HTML a partir de uma lista de avisos.
+    
+    Args:
+        warnings: Lista de avisos
+        
+    Returns:
+        HTML formatado dos avisos
+    """
     if not warnings:
         return ""
     
@@ -95,11 +147,87 @@ def _create_warning_html(warnings: list) -> str:
     </p>
     """
 
+def _load_excel_data(excel_path: str, sheet_name: str, header_row: int) -> pd.DataFrame:
+    """
+    Carrega dados de uma planilha Excel com tratamento de erros específico.
+    
+    Args:
+        excel_path: Caminho para o arquivo Excel
+        sheet_name: Nome da aba
+        header_row: Linha do cabeçalho
+        
+    Returns:
+        DataFrame com os dados carregados
+        
+    Raises:
+        FileNotFoundError: Se o arquivo não for encontrado
+        ValueError: Se a aba não for encontrada
+        ReportProcessingError: Para outros erros de leitura
+    """
+    try:
+        if not Path(excel_path).exists():
+            raise FileNotFoundError(f"Arquivo não encontrado: {excel_path}")
+        
+        df = pd.read_excel(Path(excel_path), sheet_name=sheet_name, header=header_row)
+        return df
+    except FileNotFoundError:
+        raise
+    except ValueError as e:
+        if "sheet" in str(e).lower():
+            raise ValueError(f"Aba '{sheet_name}' não encontrada no arquivo {excel_path}")
+        raise
+    except Exception as e:
+        raise ReportProcessingError(f"Erro ao ler planilha {excel_path}: {e}")
+
+def _find_attachment(pdf_dir: str, filename: str, alternative_paths: Optional[List[str]] = None) -> Tuple[Optional[Path], List[str]]:
+    """
+    Busca um anexo em múltiplos caminhos possíveis.
+    
+    Args:
+        pdf_dir: Diretório principal para busca
+        filename: Nome do arquivo
+        alternative_paths: Lista de caminhos alternativos
+        
+    Returns:
+        Tupla com (caminho encontrado, lista de avisos)
+    """
+    warnings = []
+    attachment_path = Path(pdf_dir) / filename
+    
+    if attachment_path.exists():
+        return attachment_path, warnings
+    
+    warnings.append(f"Anexo não encontrado no caminho principal: {attachment_path}")
+    
+    # Tentar caminhos alternativos
+    if alternative_paths:
+        for alt_path in alternative_paths:
+            alt_attachment = Path(alt_path) / filename
+            if alt_attachment.exists():
+                warnings.append(f"Anexo encontrado em caminho alternativo: {alt_attachment}")
+                return alt_attachment, warnings
+            else:
+                warnings.append(f"Anexo não encontrado em caminho alternativo: {alt_attachment}")
+    
+    return None, warnings
+
 # ==============================================================================
 # HANDLERS DE E-MAIL (LÓGICA E TEMPLATES COMPLETOS)
 # ==============================================================================
 
-def handle_gfn001(row: pd.Series, cfg: dict, common: dict):
+def handle_gfn001(row: pd.Series, cfg: Dict[str, Any], common: Dict[str, Any], all_configs: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Handler para relatórios GFN001.
+    
+    Args:
+        row: Linha de dados da empresa
+        cfg: Configuração do relatório
+        common: Dados comuns (mês, ano, etc.)
+        all_configs: Todas as configurações carregadas
+        
+    Returns:
+        Dicionário com dados do e-mail
+    """
     warnings = []
     if not row.get('Valor', 0) > 0:
         warnings.append("O valor do aporte é zero ou negativo. Verifique a planilha de dados.")
@@ -107,42 +235,32 @@ def handle_gfn001(row: pd.Series, cfg: dict, common: dict):
     filename_gfn = _build_filename(row['Empresa'], 'GFN001', common['month'], common['year'])
     filename_sum = _build_filename(row['Empresa'], 'SUM001', common['month'], common['year'])
     
-    gfn_path = Path(cfg['pdfs_dir']) / filename_gfn
+    # Buscar anexo GFN001
+    gfn_path, gfn_warnings = _find_attachment(cfg['pdfs_dir'], filename_gfn)
+    warnings.extend(gfn_warnings)
     
-    # Buscar configuração do SUM001 para anexar o PDF da memória de cálculo
-    all_configs = load_configs()
+    # Buscar anexo SUM001 (memória de cálculo)
     sum001_cfg = all_configs.get('SUM001')
-    
-    attachments = [gfn_path]
     sum_path = None
+    sum_warnings = []
     
     if sum001_cfg and 'pdfs_dir' in sum001_cfg:
-        sum_path = Path(sum001_cfg['pdfs_dir']) / filename_sum
-        attachments.append(sum_path)
+        sum_path, sum_warnings = _find_attachment(
+            sum001_cfg['pdfs_dir'], 
+            filename_sum,
+            # Caminho alternativo para memória de cálculo
+            [f"{cfg['pdfs_dir'].replace('SUM001', 'SUM001 - Memória_de_Cálculo')}"]
+        )
+        warnings.extend(sum_warnings)
     else:
         warnings.append("Configuração do SUM001 não encontrada para anexar PDF da memória de cálculo")
     
-    # Verificar existência dos anexos
-    if not gfn_path.exists():
-        warnings.append(f"O anexo GFN001 não foi encontrado. Caminho procurado: {gfn_path}")
-    
-    if sum_path and not sum_path.exists():
-        warnings.append(f"O anexo SUM001 (memória de cálculo) não foi encontrado. Caminho procurado: {sum_path}")
-        # Tentar buscar em diretório alternativo se o caminho padrão não existir
-        try:
-            import streamlit as st
-            raiz_sharepoint = st.session_state.get('raiz_sharepoint', '')
-            if raiz_sharepoint:
-                # Tentar caminho alternativo para memória de cálculo
-                alt_sum_path = Path(raiz_sharepoint) / common['year'] / f"{common['year']}{common['month_num']}" / "Sumário" / "SUM001 - Memória_de_Cálculo" / filename_sum
-                if alt_sum_path.exists():
-                    attachments = [gfn_path, alt_sum_path]
-                    warnings.remove(f"O anexo SUM001 (memória de cálculo) não foi encontrado. Caminho procurado: {sum_path}")
-                    warnings.append(f"PDF da memória de cálculo encontrado em caminho alternativo: {alt_sum_path}")
-                else:
-                    warnings.append(f"PDF da memória de cálculo não encontrado em caminho alternativo: {alt_sum_path}")
-        except Exception as e:
-            warnings.append(f"Erro ao tentar caminho alternativo para PDF da memória de cálculo: {e}")
+    # Montar lista de anexos
+    attachments = []
+    if gfn_path:
+        attachments.append(gfn_path)
+    if sum_path:
+        attachments.append(sum_path)
 
     warning_html = _create_warning_html(warnings)
 
@@ -159,7 +277,18 @@ def handle_gfn001(row: pd.Series, cfg: dict, common: dict):
     """
     return {'subject': subject, 'body': body, 'attachments': attachments}
 
-def handle_sum001(row: pd.Series, cfg: dict, common: dict):
+def handle_sum001(row: pd.Series, cfg: Dict[str, Any], common: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Handler para relatórios SUM001.
+    
+    Args:
+        row: Linha de dados da empresa
+        cfg: Configuração do relatório
+        common: Dados comuns (mês, ano, etc.)
+        
+    Returns:
+        Dicionário com dados do e-mail
+    """
     warnings = []
     valor = row.get('Valor', 0)
     situacao = row.get('Situacao', '')
@@ -168,18 +297,16 @@ def handle_sum001(row: pd.Series, cfg: dict, common: dict):
         warnings.append("O valor a liquidar é zero. O e-mail foi gerado para conferência.")
 
     filename = _build_filename(row['Empresa'], 'SUM001', common['month'], common['year'])
-    attachment = Path(cfg['pdfs_dir']) / filename
-    if not attachment.exists():
-        warnings.append(f"O anexo SUM001 não foi encontrado. Caminho procurado: {attachment}")
+    attachment, attachment_warnings = _find_attachment(cfg['pdfs_dir'], filename)
+    warnings.extend(attachment_warnings)
 
     warning_html = _create_warning_html(warnings)
     
+    # Extrair datas do Quadro 1 (linha 24, colunas A e B)
     try:
-        import streamlit as st
         df_raw = pd.read_excel(Path(cfg['excel_dados']), sheet_name=cfg['sheet_dados'], header=None)
-        # Linha 24: Data do Débito (Coluna A) e Data do Crédito (Coluna B)
-        data_debito_quadro1 = df_raw.iloc[23, 0]  # Linha 24, Coluna A (índice 23, 1)
-        data_credito_quadro1 = df_raw.iloc[23, 1]  # Linha 24, Coluna B (índice 23, 2)
+        data_debito_quadro1 = df_raw.iloc[23, 0]  # Linha 24, Coluna A (índice 23, 0)
+        data_credito_quadro1 = df_raw.iloc[23, 1]  # Linha 24, Coluna B (índice 23, 1)
     except Exception as e:
         warnings.append(f"Erro ao extrair datas do Quadro 1: {e}")
         data_debito_quadro1 = None
@@ -192,8 +319,7 @@ def handle_sum001(row: pd.Series, cfg: dict, common: dict):
         if data_credito_quadro1 is not None and not pd.isna(data_credito_quadro1):
             data_liquidacao = _format_date(data_credito_quadro1)
         else:
-            # Fallback: usar data padrão ou data atual
-            from datetime import datetime
+            # Fallback: usar data atual
             data_liquidacao = datetime.now().strftime('%d/%m/%Y')
         texto2 = "ressaltamos que esse crédito está sujeito ao rateio da eventual inadimplência observada no processo de liquidação financeira da Câmara. Dessa forma, caso o valor não seja creditado na íntegra, o mesmo será incluído no próximo ciclo de contabilização e liquidação financeira, estando o agente sujeito a um novo rateio de inadimplência, conforme Resolução ANEEL nº 552, de 14/10/2002."
     elif situacao == 'Débito':
@@ -202,13 +328,11 @@ def handle_sum001(row: pd.Series, cfg: dict, common: dict):
         if data_debito_quadro1 is not None and not pd.isna(data_debito_quadro1):
             data_liquidacao = _format_date(data_debito_quadro1)
         else:
-            # Fallback: usar data padrão ou data atual
-            from datetime import datetime
+            # Fallback: usar data atual
             data_liquidacao = datetime.now().strftime('%d/%m/%Y')
         texto2 = "teoricamente a conta possui o saldo necessário, visto que o aporte financeiro foi solicitado anteriormente. No entanto, a fim de evitar qualquer penalidade junto à CCEE, orientamos a verificação do saldo e também que o aporte de qualquer diferença seja efetuado com 1 (um) dia útil de antecedência da data da liquidação financeira."
     else:
         warnings.append(f"Situação '{situacao}' não reconhecida. Usando data atual como fallback.")
-        from datetime import datetime
         data_liquidacao = datetime.now().strftime('%d/%m/%Y')
         texto1 = "transação"
         texto2 = "verifique os dados na planilha."
@@ -219,12 +343,25 @@ def handle_sum001(row: pd.Series, cfg: dict, common: dict):
     <p>Segue anexo o relatório SUM001, divulgado pela Câmara de Comercialização de Energia Elétrica - CCEE, referente a liquidação financeira de <strong>{common['month_long']}/{common['year']}</strong>. No dia <strong>{data_liquidacao}</strong> há uma previsão de <strong>{texto1}</strong> na sua conta no Departamento de Ações e Custódia (DAC) do Banco Bradesco de <strong>{_format_currency(abs(valor))}</strong>.</p>
     <p>Sendo assim, {texto2}</p>
     <p>Estamos à disposição para mais informações.</p>"""
-    return {'subject': subject, 'body': body, 'attachments': [attachment]}
+    
+    return {'subject': subject, 'body': body, 'attachments': [attachment] if attachment else []}
 
-def handle_lfn001(row: pd.Series, cfg: dict, common: dict):
+def handle_lfn001(row: pd.Series, cfg: Dict[str, Any], common: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Handler para relatórios LFN001.
+    
+    Args:
+        row: Linha de dados da empresa
+        cfg: Configuração do relatório
+        common: Dados comuns (mês, ano, etc.)
+        
+    Returns:
+        Dicionário com dados do e-mail
+    """
     warnings = []
     situacao = row.get('Situacao')
     body = ""
+    
     if situacao == 'Crédito':
         body = f"""<p>Prezado (a),</p>
         <p>Segue anexo o relatório LFN001, divulgado pela Câmara de Comercialização de Energia Elétrica - CCEE, referente ao resultado da liquidação financeira de <strong>{common['month_long']}/{common['year']}</strong>. Este relatório demonstra a redução ocorrida no crédito da liquidação financeira decorrente do rateio das inadimplências dos agentes devedores da Câmara.</p>
@@ -245,19 +382,30 @@ def handle_lfn001(row: pd.Series, cfg: dict, common: dict):
         body = "<p>Não foi possível gerar o corpo do e-mail. Verifique a coluna 'Situação' na planilha de dados.</p>"
 
     filename = _build_filename(row['Empresa'], 'LFN001', common['month'], common['year'])
-    attachment = Path(cfg['pdfs_dir']) / filename
-    if not attachment.exists():
-        warnings.append(f"O anexo LFN001 não foi encontrado. Caminho procurado: {attachment}")
+    attachment, attachment_warnings = _find_attachment(cfg['pdfs_dir'], filename)
+    warnings.extend(attachment_warnings)
     
     warning_html = _create_warning_html(warnings)
     
     subject = f"LFN001 - Resultado da Liquidação Financeira - {row['Empresa']} - {common['month_num']}/{common['year']}"
-    return {'subject': subject, 'body': warning_html + body, 'attachments': [attachment]}
+    return {'subject': subject, 'body': warning_html + body, 'attachments': [attachment] if attachment else []}
 
-def handle_lfres(row: pd.Series, cfg: dict, common: dict):
+def handle_lfres(row: pd.Series, cfg: Dict[str, Any], common: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Handler para relatórios LFRES.
+    
+    Args:
+        row: Linha de dados da empresa
+        cfg: Configuração do relatório
+        common: Dados comuns (mês, ano, etc.)
+        
+    Returns:
+        Dicionário com dados do e-mail
+    """
     warnings = []
     valor, data_debito, tipo_agente = row.get('Valor', 0), _format_date(row['Data']), row.get('TipoAgente')
     body = ""
+    
     if valor != 0:
         texto_base = "referente ao pagamento de ressarcimento pela energia contratada não entregue." if tipo_agente == 'Gerador-EER' else f"referente a Liquidação de Energia de Reserva de {common['month_long']}/{common['year']}."
         body = f"""<p>Prezado(a),</p>
@@ -274,16 +422,26 @@ def handle_lfres(row: pd.Series, cfg: dict, common: dict):
         <p>Estamos à disposição para mais informações.</p>"""
     
     filename = _build_filename(row['Empresa'], f"LFRES0{common['month_num']}", common['month'], common['year'])
-    attachment = Path(cfg['pdfs_dir']) / filename
-    if not attachment.exists():
-        warnings.append(f"O anexo LFRES não foi encontrado. Caminho procurado: {attachment}")
+    attachment, attachment_warnings = _find_attachment(cfg['pdfs_dir'], filename)
+    warnings.extend(attachment_warnings)
     
     warning_html = _create_warning_html(warnings)
     
     subject = f"LFRES0{common['month_num']} - Liquidação energia de reserva à CCEE - {row['Empresa']} - {common['month_num']}/{common['year']}"
-    return {'subject': subject, 'body': warning_html + body, 'attachments': [attachment]}
+    return {'subject': subject, 'body': warning_html + body, 'attachments': [attachment] if attachment else []}
 
-def handle_lembrete(row: pd.Series, cfg: dict, common: dict):
+def handle_lembrete(row: pd.Series, cfg: Dict[str, Any], common: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Handler para lembretes.
+    
+    Args:
+        row: Linha de dados da empresa
+        cfg: Configuração do relatório
+        common: Dados comuns (mês, ano, etc.)
+        
+    Returns:
+        Dicionário com dados do e-mail ou None se não deve ser enviado
+    """
     if not row.get('Valor', 0) > 0:
         print(f"AVISO LEMBRETE para '{row['Empresa']}': Valor é zero ou negativo. E-mail NÃO será criado.")
         return None
@@ -296,13 +454,23 @@ def handle_lembrete(row: pd.Series, cfg: dict, common: dict):
     <p>Estamos à disposição para mais informações.</p>"""
     return {'subject': subject, 'body': body, 'attachments': []}
 
-def handle_lfrcap(row: pd.Series, cfg: dict, common: dict):
+def handle_lfrcap(row: pd.Series, cfg: Dict[str, Any], common: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Handler para relatórios LFRCAP.
+    
+    Args:
+        row: Linha de dados da empresa
+        cfg: Configuração do relatório
+        common: Dados comuns (mês, ano, etc.)
+        
+    Returns:
+        Dicionário com dados do e-mail
+    """
     warnings = []
     data_debito = _format_date(row['Data'])
     filename = _build_filename(row['Empresa'], 'LFRCAP001', common['month'], common['year'])
-    attachment = Path(cfg['pdfs_dir']) / filename
-    if not attachment.exists():
-        warnings.append(f"O anexo LFRCAP001 não foi encontrado. Caminho procurado: {attachment}")
+    attachment, attachment_warnings = _find_attachment(cfg['pdfs_dir'], filename)
+    warnings.extend(attachment_warnings)
     
     warning_html = _create_warning_html(warnings)
 
@@ -313,15 +481,25 @@ def handle_lfrcap(row: pd.Series, cfg: dict, common: dict):
     <p>O valor do Encargo de Reserva de Capacidade - ERCAP a ser debitado da sua conta no Departamento de Ações e Custódia (DAC) do Banco Bradesco é de <strong>{_format_currency(row['Valor'])}</strong> e deverá estar disponível independentemente do valor do Aporte de Garantia Financeira.</p>
     <p>A data do débito será no dia <strong> {data_debito}</strong>. Recomendamos que o valor seja disponibilizado com 1 (um) dia útil de antecedência.</p>
     <p>Estamos à disposição para mais informações.</p>"""
-    return {'subject': subject, 'body': body, 'attachments': [attachment]}
+    return {'subject': subject, 'body': body, 'attachments': [attachment] if attachment else []}
 
-def handle_rcap(row: pd.Series, cfg: dict, common: dict):
+def handle_rcap(row: pd.Series, cfg: Dict[str, Any], common: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Handler para relatórios RCAP.
+    
+    Args:
+        row: Linha de dados da empresa
+        cfg: Configuração do relatório
+        common: Dados comuns (mês, ano, etc.)
+        
+    Returns:
+        Dicionário com dados do e-mail
+    """
     warnings = []
     data_debito = _format_date(row['Data'])
     filename = _build_filename(row['Empresa'], 'RCAP002', common['month'], common['year'])
-    attachment = Path(cfg['pdfs_dir']) / filename
-    if not attachment.exists():
-        warnings.append(f"O anexo RCAP002 não foi encontrado. Caminho procurado: {attachment}")
+    attachment, attachment_warnings = _find_attachment(cfg['pdfs_dir'], filename)
+    warnings.extend(attachment_warnings)
 
     warning_html = _create_warning_html(warnings)
 
@@ -332,143 +510,137 @@ def handle_rcap(row: pd.Series, cfg: dict, common: dict):
     <p>O valor do Encargo de Reserva de Capacidade - ERCAP a ser debitado da sua conta no Departamento de Ações e Custódia (DAC) do Banco Bradesco é de <strong>{_format_currency(row['Valor'])}</strong> e deverá estar disponível independentemente do valor do Aporte de Garantia Financeira.</p>
     <p>A data do débito será no dia <strong>{data_debito}</strong>. Recomendamos que o valor seja disponibilizado com 1 (um) dia útil de antecedência.</p>
     <p>Estamos à disposição para mais informações.</p>"""
-    return {'subject': subject, 'body': body, 'attachments': [attachment]}
+    return {'subject': subject, 'body': body, 'attachments': [attachment] if attachment else []}
 
+# Mapeamento de handlers
 REPORT_HANDLERS = {
-    'GFN001': handle_gfn001, 'SUM001': handle_sum001, 'LFN001': handle_lfn001,
-    'LFRES': handle_lfres, 'LEMBRETE': handle_lembrete, 'LFRCAP': handle_lfrcap, 'RCAP': handle_rcap
+    'GFN001': handle_gfn001, 
+    'SUM001': handle_sum001, 
+    'LFN001': handle_lfn001,
+    'LFRES': handle_lfres, 
+    'LEMBRETE': handle_lembrete, 
+    'LFRCAP': handle_lfrcap, 
+    'RCAP': handle_rcap
 }
 
 # ==============================================================================
 # FUNÇÃO PRINCIPAL DE PROCESSAMENTO
 # ==============================================================================
 
-# Função para montar caminhos automaticamente
-import os
-
-def montar_caminhos(tipo, ano, mes, raiz):
+def _calculate_sum001_dates(cfg: Dict[str, Any], situacao: str) -> str:
     """
-    Monta automaticamente os caminhos dos arquivos baseado nos parâmetros.
-    Extrai padrões do config_relatorios.json para gerar caminhos dinâmicos.
+    Calcula a data de débito ou crédito para SUM001 baseado na situação.
+    
+    Args:
+        cfg: Configuração do relatório
+        situacao: Situação (Débito/Crédito)
+        
+    Returns:
+        Data formatada ou mensagem de erro
     """
-    # Mapeamento de meses para formato numérico
-    meses_map = {
-        'JANEIRO': '01', 'FEVEREIRO': '02', 'MARÇO': '03', 'ABRIL': '04',
-        'MAIO': '05', 'JUNHO': '06', 'JULHO': '07', 'AGOSTO': '08',
-        'SETEMBRO': '09', 'OUTUBRO': '10', 'NOVEMBRO': '11', 'DEZEMBRO': '12'
-    }
-    
-    mes_num = meses_map.get(mes.upper(), '01')
-    ano_mes = f"{ano}{mes_num}"
-    mes_abrev = mes.lower()[:3]  # jun, mai, abr, etc.
-    ano_2dig = ano[-2:]  # 25, 26, etc.
-    
-    # Padrões baseados no config_relatorios.json
-    if tipo in ["GFN001", "LEMBRETE"]:
-        pasta_base = "Garantia Financeira"
-        subpasta = "GFN003 - Excel"
-        nome_arquivo = f"ELECTRA_ENERGY_GFN003_{mes_abrev}_{ano_2dig}.xlsx"
-        excel_dados = os.path.join(raiz, ano, ano_mes, pasta_base, subpasta, nome_arquivo)
+    try:
+        df_raw = pd.read_excel(Path(cfg['excel_dados']), sheet_name=cfg['sheet_dados'], header=None)
+        # Linha 24: Data do Débito (Coluna A) e Data do Crédito (Coluna B)
+        data_debito_quadro1 = df_raw.iloc[23, 0]  # Linha 24, Coluna A (índice 23, 0)
+        data_credito_quadro1 = df_raw.iloc[23, 1]  # Linha 24, Coluna B (índice 23, 1)
         
-        if tipo == "GFN001":
-            pdfs_dir = os.path.join(raiz, ano, ano_mes, pasta_base, "GFN001")
-        else:  # LEMBRETE
-            pdfs_dir = os.path.join(raiz, ano, ano_mes, pasta_base, "GFN001")
-            
-    elif tipo == "SUM001":
-        pasta_base = "Liquidação Financeira"
-        subpasta = "LFN004"
-        nome_arquivo = f"ELECTRA ENERGY LFN004 {mes_abrev}.{ano_2dig}.xlsx"
-        excel_dados = os.path.join(raiz, ano, ano_mes, pasta_base, subpasta, nome_arquivo)
-        pdfs_dir = os.path.join(raiz, ano, ano_mes, "Sumário", "SUM001")
+        if situacao == 'Crédito':
+            if data_credito_quadro1 is not None and not pd.isna(data_credito_quadro1):
+                return _format_date(data_credito_quadro1)
+        elif situacao == 'Débito':
+            if data_debito_quadro1 is not None and not pd.isna(data_debito_quadro1):
+                return _format_date(data_debito_quadro1)
         
-    elif tipo == "LFN001":
-        pasta_base = "Liquidação Financeira"
-        subpasta = "LFN004"
-        nome_arquivo = f"ELECTRA ENERGY LFN004 {mes_abrev}.{ano_2dig}.xlsx"
-        excel_dados = os.path.join(raiz, ano, ano_mes, pasta_base, subpasta, nome_arquivo)
-        pdfs_dir = os.path.join(raiz, ano, ano_mes, pasta_base, "LFN001")
-        
-    elif tipo == "LFRES":
-        pasta_base = "Liquidação da Energia de Reserva"
-        subpasta = "LFRES002"
-        nome_arquivo = f"ELECTRA_ENERGY_LFRES002_{mes_abrev}_{ano_2dig}.xlsx"
-        excel_dados = os.path.join(raiz, ano, ano_mes, pasta_base, subpasta, nome_arquivo)
-        pdfs_dir = os.path.join(raiz, ano, ano_mes, pasta_base, "LFRES001")
-        
-    elif tipo == "LFRCAP":
-        pasta_base = "Liquidação de Reserva de Capacidade"
-        subpasta = "LFRCAP002"
-        nome_arquivo = f"ELECTRA_ENERGY_LFRCAP002_{mes_abrev}_{ano_2dig}.xlsx"
-        excel_dados = os.path.join(raiz, ano, ano_mes, pasta_base, subpasta, nome_arquivo)
-        pdfs_dir = os.path.join(raiz, ano, ano_mes, pasta_base, "LFRCAP001")
-        
-    elif tipo == "RCAP":
-        pasta_base = "Reserva de Capacidade"
-        subpasta = "RCAP002 - Consulta Dinamica"
-        nome_arquivo = f"RCAP002 {mes_abrev}.{ano_2dig}.xlsx"
-        excel_dados = os.path.join(raiz, ano, ano_mes, pasta_base, subpasta, nome_arquivo)
-        pdfs_dir = os.path.join(raiz, ano, ano_mes, pasta_base, "RCAP002")
-        
-    else:
-        excel_dados = ""
-        pdfs_dir = ""
-    
-    # Arquivo de contatos é sempre o mesmo
-    import streamlit as st
-    excel_contatos = st.session_state.get('contratos_email_path', '')
-    
-    return excel_dados, excel_contatos, pdfs_dir
+        # Fallback: usar data atual
+        return datetime.now().strftime('%d/%m/%Y')
+    except Exception as e:
+        return f"Erro ao calcular data: {e}"
 
-def process_reports(report_type: str, analyst: str, month: str, year: str) -> list:
-    import streamlit as st
-    raiz_sharepoint = st.session_state.get('raiz_sharepoint', '')
-    if not raiz_sharepoint:
-        raise ReportProcessingError("Diretório raiz do SharePoint não informado.")
+def _load_and_process_data(cfg: Dict[str, Any], login_usuario: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Carrega e processa dados das planilhas.
     
-    all_configs = load_configs()
-    cfg = all_configs.get(report_type)
-    if not cfg: raise ReportProcessingError(f"'{report_type}' não encontrado nas configs.")
-
-    # Montar caminhos automaticamente apenas para relatórios que não são SUM001
-    if report_type != "SUM001":
-        excel_dados, excel_contatos, pdfs_dir = montar_caminhos(report_type, year, month, raiz_sharepoint)
-        cfg['excel_dados'] = excel_dados
-        cfg['excel_contatos'] = excel_contatos
-        cfg['pdfs_dir'] = pdfs_dir
-    else:
-        # Para SUM001, usar a configuração do arquivo JSON que já está correta
-        # Apenas atualizar o arquivo de contatos se necessário
-        if not cfg.get('excel_contatos'):
-            cfg['excel_contatos'] = st.session_state.get('contratos_email_path', '')
-
+    Args:
+        cfg: Configuração do relatório
+        login_usuario: Login do usuário
+        
+    Returns:
+        Tupla com (DataFrame de dados, DataFrame de contatos)
+        
+    Raises:
+        ReportProcessingError: Se houver erro no processamento
+    """
     try:
         header = int(cfg.get('header_row', 0))
-        df_dados = pd.read_excel(Path(cfg['excel_dados']), sheet_name=cfg['sheet_dados'], header=header)
-        df_contatos = pd.read_excel(Path(cfg['excel_contatos']), sheet_name=cfg['sheet_contatos'])
-    except Exception as e:
-        raise ReportProcessingError(f"Erro ao ler as planilhas. Verifique os caminhos, nomes das abas e linha de cabeçalho. Erro: {e}")
+        df_dados = _load_excel_data(cfg['excel_dados'], cfg['sheet_dados'], header)
+        df_contatos = _load_excel_data(cfg['excel_contatos'], cfg['sheet_contatos'], 0)
+    except (FileNotFoundError, ValueError) as e:
+        raise ReportProcessingError(f"Erro ao ler as planilhas: {e}")
 
     try:
         column_mapping = dict(item.split(':') for item in cfg['data_columns'].split(','))
     except ValueError:
-        raise ReportProcessingError(f"Formato inválido em 'Mapeamento de Colunas' para {report_type}. Use 'NomeNoExcel:NomePadrão,OutraColuna:OutroNome'.")
+        raise ReportProcessingError(f"Formato inválido em 'Mapeamento de Colunas'. Use 'NomeNoExcel:NomePadrão,OutraColuna:OutroNome'.")
         
     df_dados.rename(columns=column_mapping, inplace=True)
     df_contatos.rename(columns={'AGENTE': 'Empresa', 'ANALISTA': 'Analista', 'E-MAILS RELATÓRIOS CCEE': 'Email'}, inplace=True)
     
-    if 'Empresa' not in df_dados.columns: raise ReportProcessingError(f"Coluna 'Empresa' não encontrada nos dados de {report_type} após mapeamento.")
-    if 'Empresa' not in df_contatos.columns: raise ReportProcessingError("Coluna 'AGENTE' não encontrada nos contatos.")
-    if 'Analista' not in df_contatos.columns: raise ReportProcessingError("Coluna 'ANALISTA' não encontrada nos contatos.")
+    if 'Empresa' not in df_dados.columns: 
+        raise ReportProcessingError(f"Coluna 'Empresa' não encontrada nos dados após mapeamento.")
+    if 'Empresa' not in df_contatos.columns: 
+        raise ReportProcessingError("Coluna 'AGENTE' não encontrada nos contatos.")
+    if 'Analista' not in df_contatos.columns: 
+        raise ReportProcessingError("Coluna 'ANALISTA' não encontrada nos contatos.")
 
+    return df_dados, df_contatos
+
+def process_reports(report_type: str, analyst: str, month: str, year: str, login_usuario: str) -> List[Dict[str, Any]]:
+    """
+    Processa relatórios e gera e-mails.
+    
+    Args:
+        report_type: Tipo do relatório
+        analyst: Analista responsável
+        month: Mês do relatório
+        year: Ano do relatório
+        login_usuario: Login do usuário
+        
+    Returns:
+        Lista com resultados do processamento
+        
+    Raises:
+        ReportProcessingError: Se houver erro no processamento
+    """
+    if not login_usuario:
+        raise ReportProcessingError("Login do usuário não informado.")
+    
+    all_configs = load_configs()
+    cfg = all_configs.get(report_type)
+    if not cfg: 
+        raise ReportProcessingError(f"'{report_type}' não encontrado nas configurações.")
+
+    # Construir caminhos dinamicamente
+    try:
+        report_paths = build_report_paths(report_type, year, month, login_usuario)
+        cfg.update(report_paths)
+    except ValueError as e:
+        raise ReportProcessingError(f"Erro ao construir caminhos: {e}")
+
+    # Carregar e processar dados
+    df_dados, df_contatos = _load_and_process_data(cfg, login_usuario)
+    
+    # Filtrar dados por analista
     df_merged = pd.merge(df_dados, df_contatos, on='Empresa', how='left')
     df_filtered = df_merged[df_merged['Analista'] == analyst].copy()
-    if df_filtered.empty: raise ReportProcessingError(f"Nenhum registro para o analista '{analyst}'.")
+    if df_filtered.empty: 
+        raise ReportProcessingError(f"Nenhum registro encontrado para o analista '{analyst}'.")
     
     df_filtered['Email'] = df_filtered['Email'].fillna('EMAIL_NAO_ENCONTRADO')
 
+    # Preparar dados comuns
     meses_map = {m.upper(): f"{i+1:02d}" for i, m in enumerate(MESES)}
     report_date = ""
+    
     if report_type in ['GFN001', 'LEMBRETE']:
         try:
             df_data_raw = pd.read_excel(Path(cfg['excel_dados']), sheet_name=cfg['sheet_dados'], header=None, usecols=[0])
@@ -486,11 +658,25 @@ def process_reports(report_type: str, analyst: str, month: str, year: str) -> li
         'report_date': report_date
     }
 
+    # Processar cada linha e gerar e-mails
     results, created_count = [], 0
+    handler = REPORT_HANDLERS.get(report_type)
+    
+    if not handler:
+        raise ReportProcessingError(f"Handler não encontrado para o tipo de relatório '{report_type}'")
+    
     for _, row in df_filtered.iterrows():
-        handler = REPORT_HANDLERS.get(report_type)
-        email_data, anexos = None, 0
-        if handler: email_data = handler(row, cfg, common_data)
+        email_data = None
+        anexos = 0
+        
+        try:
+            if report_type == 'GFN001':
+                email_data = handler(row, cfg, common_data, all_configs)
+            else:
+                email_data = handler(row, cfg, common_data)
+        except Exception as e:
+            print(f"Erro ao processar linha para {row.get('Empresa', 'Empresa desconhecida')}: {e}")
+            continue
         
         if email_data:
             created_count += 1
@@ -503,61 +689,63 @@ def process_reports(report_type: str, analyst: str, month: str, year: str) -> li
             'empresa': row['Empresa'],
             'data': report_date or _format_date(row.get('Data')),
             'valor': _format_currency(row.get('Valor')),
-            'email': row['Email'], 'anexos_count': anexos, 'created_count': created_count,
+            'email': row['Email'], 
+            'anexos_count': anexos, 
+            'created_count': created_count,
         })
+    
     return results
 
-def preview_dados(report_type: str, analyst: str, month: str, year: str):
-    import streamlit as st
-    from pathlib import Path
-    from config import load_configs, MESES
-    import pandas as pd
-    import logging
+def preview_dados(report_type: str, analyst: str, month: str, year: str, login_usuario: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Pré-visualiza dados de um relatório.
     
-    raiz_sharepoint = st.session_state.get('raiz_sharepoint', '')
-    if not raiz_sharepoint:
-        raise ReportProcessingError("Diretório raiz do SharePoint não informado.")
+    Args:
+        report_type: Tipo do relatório
+        analyst: Analista responsável
+        month: Mês do relatório
+        year: Ano do relatório
+        login_usuario: Login do usuário
+        
+    Returns:
+        Tupla com (DataFrame completo, DataFrame de preview)
+        
+    Raises:
+        ReportProcessingError: Se houver erro no processamento
+    """
+    if not login_usuario:
+        raise ReportProcessingError("Login do usuário não informado.")
+    
     all_configs = load_configs()
     cfg = all_configs.get(report_type)
     if not cfg:
-        raise ReportProcessingError(f"'{report_type}' não encontrado nas configs.")
+        raise ReportProcessingError(f"'{report_type}' não encontrado nas configurações.")
     
-    # Montar caminhos automaticamente apenas para relatórios que não são SUM001
-    if report_type != "SUM001":
-        excel_dados, excel_contatos, pdfs_dir = montar_caminhos(report_type, year, month, raiz_sharepoint)
-        cfg['excel_dados'] = excel_dados
-        cfg['excel_contatos'] = excel_contatos
-        cfg['pdfs_dir'] = pdfs_dir
-    else:
-        # Para SUM001, usar a configuração do arquivo JSON que já está correta
-        # Apenas atualizar o arquivo de contatos se necessário
-        if not cfg.get('excel_contatos'):
-            cfg['excel_contatos'] = st.session_state.get('contratos_email_path', '')
+    # Construir caminhos dinamicamente
+    try:
+        report_paths = build_report_paths(report_type, year, month, login_usuario)
+        cfg.update(report_paths)
+    except ValueError as e:
+        raise ReportProcessingError(f"Erro ao construir caminhos: {e}")
+
+    # Carregar e processar dados
+    df_dados, df_contatos = _load_and_process_data(cfg, login_usuario)
     
-    try:
-        header = int(cfg.get('header_row', 0))
-        df_dados = pd.read_excel(Path(cfg['excel_dados']), sheet_name=cfg['sheet_dados'], header=header)
-        df_contatos = pd.read_excel(Path(cfg['excel_contatos']), sheet_name=cfg['sheet_contatos'])
-    except Exception as e:
-        logging.error(f"Erro ao ler planilhas para preview: {e}")
-        raise ReportProcessingError(f"Erro ao ler as planilhas para pré-visualização. Verifique os caminhos, nomes das abas e linha de cabeçalho. Erro: {e}")
-    try:
-        column_mapping = dict(item.split(':') for item in cfg['data_columns'].split(','))
-    except ValueError:
-        raise ReportProcessingError(f"Formato inválido em 'Mapeamento de Colunas' para {report_type}. Use 'NomeNoExcel:NomePadrão,OutraColuna:OutroNome'.")
-    df_dados.rename(columns=column_mapping, inplace=True)
-    df_contatos.rename(columns={'AGENTE': 'Empresa', 'ANALISTA': 'Analista', 'E-MAILS RELATÓRIOS CCEE': 'Email'}, inplace=True)
-    if 'Empresa' not in df_dados.columns:
-        raise ReportProcessingError(f"Coluna 'Empresa' não encontrada nos dados de {report_type} após mapeamento.")
-    if 'Empresa' not in df_contatos.columns:
-        raise ReportProcessingError("Coluna 'AGENTE' não encontrada nos contatos.")
-    if 'Analista' not in df_contatos.columns:
-        raise ReportProcessingError("Coluna 'ANALISTA' não encontrada nos contatos.")
+    # Filtrar dados por analista
     df_merged = pd.merge(df_dados, df_contatos, on='Empresa', how='left')
     df_filtered = df_merged[df_merged['Analista'] == analyst].copy()
     if df_filtered.empty:
-        raise ReportProcessingError(f"Nenhum registro para o analista '{analyst}'.")
+        raise ReportProcessingError(f"Nenhum registro encontrado para o analista '{analyst}'.")
+    
     df_filtered['Email'] = df_filtered['Email'].fillna('EMAIL_NAO_ENCONTRADO')
+    
+    # Para SUM001, calcular as datas de débito/crédito
+    if report_type == 'SUM001':
+        df_filtered['Data_Debito_Credito'] = df_filtered.apply(
+            lambda row: _calculate_sum001_dates(cfg, row.get('Situacao', '')),
+            axis=1
+        )
+    
     preview_df = df_filtered.head(20)  # Mostra as 20 primeiras linhas para preview
-    logging.info(f"Pré-visualização de dados carregada para {analyst} - {report_type} {month}/{year}")
+    
     return df_filtered, preview_df
