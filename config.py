@@ -53,7 +53,7 @@ DEFAULT_CONFIGS = {
             "pdfs_dir": "{sharepoint_root}/{ano}/{ano_mes}/Liquidação Financeira/LFN001"
         }
     },
-    "LFRES": {
+    "LFRES001": {
         "sheet_dados": "LFRES002 - Liquidação de Energi",
         "sheet_contatos": "Planilha1",
         "header_row": 42,
@@ -63,7 +63,7 @@ DEFAULT_CONFIGS = {
             "pdfs_dir": "{sharepoint_root}/{ano}/{ano_mes}/Liquidação da Energia de Reserva/LFRES001"
         }
     },
-    "LEMBRETE": {
+    "GFN - LEMBRETE": {
         "sheet_dados": "GFN003 - Garantia Financeira po",
         "sheet_contatos": "Planilha1",
         "header_row": 30,
@@ -73,7 +73,7 @@ DEFAULT_CONFIGS = {
             "pdfs_dir": "{sharepoint_root}/{ano}/{ano_mes}/Garantia Financeira/GFN001"
         }
     },
-    "LFRCAP": {
+    "LFRCAP001": {
         "sheet_dados": "LFRCAP002 - Liquidação de Reser",
         "sheet_contatos": "Planilha1",
         "header_row": 30,
@@ -83,7 +83,7 @@ DEFAULT_CONFIGS = {
             "pdfs_dir": "{sharepoint_root}/{ano}/{ano_mes}/Liquidação de Reserva de Capacidade/LFRCAP001"
         }
     },
-    "RCAP": {
+    "RCAP002": {
         "sheet_dados": "Sheet1",
         "sheet_contatos": "Planilha1",
         "header_row": 4,
