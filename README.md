@@ -1,102 +1,252 @@
-# Plataforma de Automação de Relatórios CCEE com Streamlit
+# RPA-Envio-Emails-STREAMLIT
 
-![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?style=for-the-badge&logo=Streamlit&logoColor=white)
-![Pandas](https://img.shields.io/badge/Pandas-150458?style=for-the-badge&logo=pandas&logoColor=white)
+Sistema de automação para envio de relatórios CCEE via e-mail desenvolvido em Streamlit.
 
-Uma aplicação web moderna e robusta desenvolvida para automatizar por completo o processo de geração e envio de relatórios financeiros da CCEE, substituindo um fluxo de trabalho legado baseado em macros VBA.
+## 📋 Descrição
 
-<!-- Insira aqui o GIF/Imagem de demonstração do seu projeto. É a parte mais importante! -->
-<!-- Exemplo: <img src="caminho/para/seu/demo.gif" alt="Demonstração da Aplicação"> -->
-<!-- Dica: Use ferramentas como ScreenToGif para gravar sua tela de forma fácil. -->
+Este projeto automatiza o processo de envio de relatórios da Câmara de Comercialização de Energia Elétrica (CCEE) para clientes, gerando e-mails personalizados com anexos PDF baseados em dados de planilhas Excel.
 
-## 📖 Sobre o Projeto
+## 🚀 Funcionalidades
 
-Este projeto nasceu da necessidade de otimizar um processo crítico de negócio que era manual, demorado e suscetível a erros. O fluxo anterior, dependente de macros complexas em VBA, foi reimaginado e reconstruído como uma aplicação web moderna, intuitiva e escalável.
+- **Automação de E-mails**: Geração automática de e-mails com Outlook
+- **Múltiplos Tipos de Relatório**: Suporte a GFN001, SUM001, LFN001, LFRES, LEMBRETE, LFRCAP, RCAP
+- **Interface Web**: Interface amigável desenvolvida em Streamlit
+- **Configuração Flexível**: Sistema de configuração via JSON
+- **Modo de Teste**: Possibilidade de testar como diferentes analistas
+- **Tratamento de Erros**: Sistema robusto de tratamento de erros
 
-A plataforma centraliza a lógica de múltiplos relatórios (`GFN001`, `SUM001`, `LFN001`, etc.), permitindo que analistas gerem e enviem dezenas de e-mails personalizados com os anexos corretos em questão de segundos, transformando horas de trabalho em apenas alguns cliques.
+## 🛠️ Tecnologias Utilizadas
 
-## ✨ Principais Funcionalidades
+- **Streamlit**: Interface web
+- **Pandas**: Manipulação de dados
+- **OpenPyXL**: Leitura de arquivos Excel
+- **PyWin32**: Integração com Microsoft Outlook
+- **Pathlib**: Manipulação de caminhos de arquivo
 
--   **Interface Web Intuitiva:** Construída com **Streamlit**, oferece uma experiência de usuário limpa e direta, com navegação em abas para Envio e Configurações.
--   **Configuração Centralizada:** Um painel de configurações completo permite que os usuários gerenciem todos os parâmetros (caminhos de arquivos, nomes de abas, linha de cabeçalho e mapeamento de colunas) para cada tipo de relatório, sem a necessidade de qualquer alteração no código.
--   **Motor de Dados com Pandas:** Utiliza a biblioteca **Pandas** para ler, limpar, validar e consolidar dados de diversas planilhas Excel, lidando com estruturas complexas e mapeamentos dinâmicos.
--   **Lógica de Negócio Modular:** Cada relatório possui um "handler" dedicado que encapsula suas regras de negócio específicas — templates de e-mail, condições de envio (`valor > 0`), e a lógica para construção dos nomes de anexos.
--   **Automação de E-mail com Outlook:** Integração nativa com o Microsoft Outlook via **pywin32** para gerar rascunhos de e-mail, preenchidos com corpo em HTML, destinatários e os PDFs corretos, prontos para a revisão final do analista.
-
-## 🛠️ Stack de Tecnologias
-
-| Área                | Tecnologia                                                                                              |
-| ------------------- | ------------------------------------------------------------------------------------------------------- |
-| **Backend & Lógica** | ![Python](https://img.shields.io/badge/-Python-3776AB?logo=python&logoColor=white)                         |
-| **Interface Web**    | ![Streamlit](https://img.shields.io/badge/-Streamlit-FF4B4B?logo=streamlit&logoColor=white)                   |
-| **Manipulação de Dados** | ![Pandas](https://img.shields.io/badge/-Pandas-150458?logo=pandas&logoColor=white)                           |
-| **Automação Desktop**  | `pywin32` (para integração COM com Outlook)                                                             |
-| **Configuração**      | `TOML` (para temas Streamlit) & `JSON` (para configurações da aplicação)                                |
-
-## 📂 Estrutura do Projeto
-
-A arquitetura foi projetada para ser modular e de fácil manutenção:
-
-```
-/projeto-automacao-streamlit
-|-- .streamlit/
-|   |-- config.toml         # Configuração de tema do Streamlit (força o modo claro)
-|-- app.py                  # Script principal do Streamlit (UI e orquestração)
-|-- services.py             # Cérebro da aplicação (processamento de dados e handlers)
-|-- config.py               # Configurações padrão e constantes globais
-|-- requirements.txt        # Dependências do projeto
-|-- config_relatorios.json  # Arquivo de configurações do usuário (gerado/editado via UI)
-|-- /static/
-|   |-- logo.png            # Logo da empresa
-```
-
-## ⚙️ Instalação e Execução
+## 📦 Instalação
 
 ### Pré-requisitos
--   Python 3.9+
--   Microsoft Outlook instalado e configurado no Windows
--   Um ambiente virtual é fortemente recomendado.
 
-### Passos para Rodar
+- Python 3.8 ou superior
+- Windows (para integração com Outlook)
+- Microsoft Outlook instalado
 
-1.  **Clone o repositório:**
-    ```bash
-    git clone https://github.com/seu-usuario/seu-repositorio.git
-    cd seu-repositorio
-    ```
+### Passos de Instalação
 
-2.  **Crie e ative um ambiente virtual:**
-    ```bash
-    # Criar
-    python -m venv venv
-    # Ativar no Windows (PowerShell)
-    .\venv\Scripts\Activate.ps1
-    ```
+1. **Clone o repositório**:
+   ```bash
+   git clone <url-do-repositorio>
+   cd RPA-Envio-Emails-STREAMLIT
+   ```
 
-3.  **Instale as dependências:**
-    ```bash
-    pip install -r requirements.txt
-    ```
+2. **Crie um ambiente virtual**:
+   ```bash
+   python -m venv venv
+   ```
 
-4.  **Execute a aplicação Streamlit:**
-    ```bash
-    streamlit run app.py
-    ```
-    A aplicação será aberta automaticamente no seu navegador padrão.
+3. **Ative o ambiente virtual**:
+   ```bash
+   # Windows (PowerShell)
+   .\venv\Scripts\Activate.ps1
+   
+   # Windows (Command Prompt)
+   .\venv\Scripts\activate.bat
+   
+   # Linux/macOS
+   source venv/bin/activate
+   ```
 
-## 🔧 Configuração Essencial
+4. **Instale as dependências**:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-Na primeira vez que rodar, ou após excluir o `config_relatorios.json`, a aplicação usará os valores padrão. É crucial ajustar as configurações para o seu ambiente através da interface:
+## 🚀 Execução
 
-1.  Navegue até a página de **Configurações**.
-2.  Para cada relatório, preencha os caminhos dos arquivos e diretórios de PDF.
-3.  Ajuste a **Linha do Cabeçalho** (lembrando que a contagem inicia em 0).
-4.  Defina o **Mapeamento de Colunas** usando o formato `NomeNoExcel:NomePadrão` separado por vírgulas.
-    -   **Exemplo:** `Agente:Empresa,Garantia Avulsa (R$):Valor`
+1. **Ative o ambiente virtual** (se não estiver ativo):
+   ```bash
+   .\venv\Scripts\Activate.ps1
+   ```
 
-## 👨‍💻 Autor
+2. **Execute a aplicação**:
+   ```bash
+   streamlit run app.py
+   ```
 
-Desenvolvido por **Malik Ribeiro Mourad**.
+3. **Acesse no navegador**:
+   - A aplicação estará disponível em `http://localhost:8501`
 
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)]([https://www.linkedin.com/in/malikribeiro/])
+## 📁 Estrutura do Projeto
+
+```
+RPA-Envio-Emails-STREAMLIT/
+├── app.py                 # Aplicação principal Streamlit
+├── services.py            # Lógica de negócio e handlers de e-mail
+├── config.py              # Configurações e utilitários
+├── config_relatorios.json # Configurações dos relatórios
+├── requirements.txt       # Dependências do projeto
+├── README.md             # Este arquivo
+├── static/               # Arquivos estáticos (logo, ícones)
+├── templates/            # Templates HTML (se aplicável)
+└── venv/                # Ambiente virtual (não versionado)
+```
+
+## 🔧 Configuração
+
+### Login do Usuário
+
+- O sistema utiliza o login de rede do usuário para configurar automaticamente os caminhos dos arquivos
+- Formato esperado: `nome.sobrenome`
+
+### Estrutura de Arquivos Esperada
+
+```
+C:/Users/{login_usuario}/
+└── ELECTRA COMERCIALIZADORA DE ENERGIA S.A/
+    └── GE - ECE/
+        ├── DGCA/
+        │   ├── DGA/
+        │   │   └── CCEE/
+        │   │       └── Relatórios CCEE/
+        │   │           └── {ano}/
+        │   │               └── {ano_mes}/
+        │   │                   ├── Garantia Financeira/
+        │   │                   ├── Liquidação Financeira/
+        │   │                   ├── Sumário/
+        │   │                   └── ...
+        │   └── DGC/
+        │       └── Macro/
+        │           └── Contatos de E-mail para Macros.xlsx
+```
+
+### Configuração de Relatórios
+
+Cada tipo de relatório pode ser configurado através da interface web ou diretamente no arquivo `config_relatorios.json`:
+
+```json
+{
+  "GFN001": {
+    "sheet_dados": "GFN003 - Garantia Financeira po",
+    "sheet_contatos": "Planilha1",
+    "header_row": 30,
+    "data_columns": "Agente:Empresa,Garantia Avulsa (R$):Valor"
+  }
+}
+```
+
+## 📊 Tipos de Relatório Suportados
+
+| Tipo | Descrição | Arquivo de Dados |
+|------|-----------|------------------|
+| GFN001 | Garantia Financeira | GFN003 |
+| SUM001 | Sumário da Liquidação Financeira | LFN004 |
+| LFN001 | Liquidação Financeira | LFN004 |
+| LFRES | Liquidação da Energia de Reserva | LFRES002 |
+| LEMBRETE | Lembrete de Aporte | GFN003 |
+| LFRCAP | Liquidação de Reserva de Capacidade | LFRCAP002 |
+| RCAP | Reserva de Capacidade | RCAP002 |
+
+## 🔍 Uso
+
+### 1. Login
+- Acesse a aplicação e faça login com seu usuário de rede
+- O sistema configurará automaticamente os caminhos dos arquivos
+
+### 2. Seleção de Parâmetros
+- Escolha o tipo de relatório
+- Selecione o mês e ano
+- Clique em "Pré-visualizar Dados"
+
+### 3. Processamento
+- O sistema carregará os dados das planilhas
+- Filtrará por analista responsável
+- Gerará e-mails no Outlook para revisão
+
+### 4. Modo de Teste (Admin)
+- Administradores podem testar como outros analistas
+- Útil para verificar dados e configurações
+
+## ⚙️ Configurações Avançadas
+
+### Personalização de Caminhos
+
+Os caminhos são configurados automaticamente, mas podem ser personalizados editando `config.py`:
+
+```python
+PATH_CONFIGS = {
+    "sharepoint_root": "ELECTRA COMERCIALIZADORA DE ENERGIA S.A/GE - ECE/DGCA/DGA/CCEE/Relatórios CCEE",
+    "contatos_email": "ELECTRA COMERCIALIZADORA DE ENERGIA S.A/GE - ECE/DGCA/DGC/Macro/Contatos de E-mail para Macros.xlsx",
+    "user_base": "C:/Users"
+}
+```
+
+### Adicionando Novos Tipos de Relatório
+
+1. Adicione a configuração em `config.py`:
+```python
+DEFAULT_CONFIGS["NOVO_TIPO"] = {
+    "sheet_dados": "Nome da Aba",
+    "sheet_contatos": "Planilha1",
+    "header_row": 0,
+    "data_columns": "Coluna1:Map1,Coluna2:Map2"
+}
+```
+
+2. Crie o handler em `services.py`:
+```python
+def handle_novo_tipo(row: pd.Series, cfg: Dict[str, Any], common: Dict[str, Any]) -> Dict[str, Any]:
+    # Lógica do handler
+    pass
+
+REPORT_HANDLERS['NOVO_TIPO'] = handle_novo_tipo
+```
+
+## 🐛 Tratamento de Erros
+
+O sistema inclui tratamento robusto de erros:
+
+- **Arquivos não encontrados**: Verificação de existência de arquivos
+- **Configurações inválidas**: Validação de configurações
+- **Dados ausentes**: Tratamento de dados faltantes
+- **Erros de Outlook**: Tratamento de falhas na integração
+
+## 📝 Logs
+
+- Os logs são salvos em `app.log`
+- Incluem informações de erro e processamento
+- Útil para debugging e monitoramento
+
+## 🔒 Segurança
+
+- Login baseado em usuário de rede
+- Validação de formatos de entrada
+- Tratamento seguro de caminhos de arquivo
+- Logs para auditoria
+
+## 🤝 Contribuição
+
+Para contribuir com o projeto:
+
+1. Faça um fork do repositório
+2. Crie uma branch para sua feature
+3. Implemente as mudanças
+4. Teste adequadamente
+5. Submeta um pull request
+
+## 📄 Licença
+
+Este projeto é de uso interno da ELECTRA COMERCIALIZADORA DE ENERGIA S.A.
+
+## 👥 Autores
+
+- Desenvolvido para DGCA
+- Mantido pela equipe de desenvolvimento
+
+## 📞 Suporte
+
+Para suporte técnico ou dúvidas, entre em contato com a equipe de desenvolvimento.
+
+---
+
+**Versão**: 1.0.0  
+**Última atualização**: Julho 2025
