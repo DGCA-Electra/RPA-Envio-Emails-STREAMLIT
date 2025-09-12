@@ -27,10 +27,18 @@
 
 ### README
 - Atualizado com nota sobre mudança de UI: parâmetros agora no painel principal, sidebar apenas navegação.
+- Instruções de navegação e layout incluídas.
 
 ### Branch e Commits
 - Branch criada: fix/remove-sidebar-params-20250912
 - Commits claros e segmentados por funcionalidade.
+
+## 🖥️ Navegação e Layout
+
+- Navegação principal na sidebar: "Envio de Relatórios" e "Configurações".
+- Parâmetros de envio centralizados no painel principal.
+- Visualização de dados e KPIs organizados em colunas, layout limpo.
+- Pré-visualização do e-mail como HTML renderizado.
 
 ---
 

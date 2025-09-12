@@ -9,6 +9,8 @@ from typing import Dict, Any, Optional
 import os
 from utils.dataframe_utils import tratar_valores_df
 from config import REPORT_DISPLAY_COLUMNS
+import streamlit.components.v1 as components
+from jinja2 import Environment, FileSystemLoader
 
 # Configuração básica de logging
 logging.basicConfig(filename='app.log', level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
@@ -36,163 +38,50 @@ def show_main_page() -> None:
     
     all_configs = config.load_configs()
     report_types = list(all_configs.keys())
-        import streamlit.components.v1 as components
-        from jinja2 import Environment, FileSystemLoader
+        
 
-        # Inicializa st.session_state com valores padrão
-        def init_state():
-            defaults = {
-                "report_type": "GFN001",
-                "analyst": "Artur Bello Rodrigues",
-                "month": "JANEIRO",
-                "year": 2025
-            }
-            for k, v in defaults.items():
-                if k not in st.session_state:
-                    st.session_state[k] = v
+    # Inicializa st.session_state com valores padrão
+    def init_state():
+        defaults = {
+            "report_type": "GFN001",
+            "analyst": "Artur Bello Rodrigues",
+            "month": "JANEIRO",
+            "year": 2025
+        }
+        for k, v in defaults.items():
+            if k not in st.session_state:
+                st.session_state[k] = v
+    init_state()
 
-        init_state()
-
-    with st.form("report_form"):
-        st.subheader("Parâmetros de Envio")
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            tipo_form = st.selectbox("Tipo de Relatório", options=report_types, key="form_tipo")
-        with col2:
-            analista_form = st.selectbox("Analista", options=config.ANALISTAS, key="form_analista")
-        with col3:
-            mes_form = st.selectbox("Mês", options=config.MESES, key="form_mes")
-        with col4:
-            ano_form = st.selectbox("Ano", options=config.ANOS, key="form_ano")
-        # Dois botões separados
+    # Renderização dos parâmetros principais
+    def render_main_parameters():
+        st.header("Parâmetros de Envio")
+        c1, c2, c3, c4 = st.columns([2,2,2,1])
+        with c1:
+            st.session_state.report_type = st.selectbox("Tipo de Relatório", options=report_types, index=report_types.index(st.session_state.report_type) if st.session_state.report_type in report_types else 0)
+        with c2:
+            st.session_state.analyst = st.selectbox("Analista", options=config.ANALISTAS, index=config.ANALISTAS.index(st.session_state.analyst) if st.session_state.analyst in config.ANALISTAS else 0)
+        with c3:
+            st.session_state.month = st.selectbox("Mês", options=config.MESES, index=config.MESES.index(st.session_state.month) if st.session_state.month in config.MESES else 0)
+        with c4:
+            st.session_state.year = st.selectbox("Ano", options=config.ANOS, index=config.ANOS.index(st.session_state.year) if st.session_state.year in config.ANOS else 0)
         col1, col2 = st.columns(2)
         with col1:
-            preview_submitted = st.form_submit_button("👁️ Visualizar Dados", use_container_width=True)
+            if st.button("👁️ Visualizar Dados", use_container_width=True):
+                st.session_state.preview_trigger = True
         with col2:
-            send_submitted = st.form_submit_button("📧 Enviar E-mails", use_container_width=True)
+            if st.button("📧 Enviar E-mails", use_container_width=True):
+                st.session_state.send_trigger = True
 
-        # Inputs organizados no sidebar
+    render_main_parameters()
 
-        # Botões de ação
+    # Sidebar não deve ser usada aqui; navegação já é feita em main()
 
-        # Pré-visualização de e-mail
-        if 'preview_data' in st.session_state and st.session_state.preview_data is not None:
-            df_preview = st.session_state.preview_data
-            if not df_preview.empty:
-                st.subheader("Pré-visualização do E-mail")
-                dados_empresa = df_preview.iloc[0].to_dict()
-                with open('templates/email_template.html', 'r', encoding='utf-8') as f:
-                    email_template = f.read()
-                from mail.email_utils import montar_corpo_email
-                corpo_preview = montar_corpo_email(dados_empresa, email_template)
-                st.markdown(corpo_preview, unsafe_allow_html=True)
-
-        def render_main_parameters():
-            st.header("Parâmetros de Envio")
-            c1, c2, c3, c4 = st.columns([2,2,2,1])
-            with c1:
-                st.session_state.report_type = st.selectbox("Tipo de Relatório", options=report_types, index=report_types.index(st.session_state.report_type) if st.session_state.report_type in report_types else 0)
-            with c2:
-                st.session_state.analyst = st.selectbox("Analista", options=config.ANALISTAS, index=config.ANALISTAS.index(st.session_state.analyst) if st.session_state.analyst in config.ANALISTAS else 0)
-            with c3:
-                st.session_state.month = st.selectbox("Mês", options=config.MESES, index=config.MESES.index(st.session_state.month) if st.session_state.month in config.MESES else 0)
-            with c4:
-                st.session_state.year = st.selectbox("Ano", options=config.ANOS, index=config.ANOS.index(st.session_state.year) if st.session_state.year in config.ANOS else 0)
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("👁️ Visualizar Dados", use_container_width=True):
-                    st.session_state.preview_trigger = True
-            with col2:
-                if st.button("📧 Enviar E-mails", use_container_width=True):
-                    st.session_state.send_trigger = True
-
-        render_main_parameters()
-
-        # Sidebar apenas navegação
-        with st.sidebar:
-            st.title("🧭 Navegação")
-            page_options = ["Envio de Relatórios", "Configurações"]
-            page = st.radio("Menu", page_options)
-            st.markdown("---")
-            st.caption("Aplicativo para automação de envio de relatórios")
-
-        # Usar o analista selecionado
-        analista_final = st.session_state.analyst
-        tipo = st.session_state.report_type
-        mes = st.session_state.month
-        ano = st.session_state.year
-
-        # Verificar se o analista é válido
-        if not analista_final or analista_final not in config.ANALISTAS:
-            st.error("❌ Analista inválido. Selecione um analista válido.")
-            return
-
-        # Verificar se o tipo de relatório é válido
-        if not tipo or tipo not in report_types:
-            st.error("❌ Tipo de relatório inválido. Selecione um tipo válido.")
-            return
-
-        # Verificar se o mês e ano são válidos
-        if not mes or mes not in config.MESES:
-            st.error("❌ Mês inválido. Selecione um mês válido.")
-            return
-
-        if not ano or ano not in config.ANOS:
-            st.error("❌ Ano inválido. Selecione um ano válido.")
-            return
-
-        # Função para sanitizar e-mails
-        def safe_join_emails(email_field):
-            if not email_field:
-                return ""
-            if isinstance(email_field, list):
-                return "; ".join(e.strip() for e in email_field if e)
-            return "; ".join([e.strip() for e in str(email_field).split(';') if e.strip()])
-
-        # Função para renderizar pré-visualização do e-mail
-        def render_email_preview(context):
-            env = Environment(loader=FileSystemLoader("templates"))
-            template = env.get_template("email_template.html")
-            html = template.render(**context)
-            components.html(html, height=400, scrolling=True)
-
-        # Processar visualização de dados
-        if st.session_state.get("preview_trigger"):
-            with st.spinner("Carregando dados para visualização... Por favor, aguarde."):
-                try:
-                    df_filtered, df_preview = services.preview_dados(
-                        report_type=tipo, 
-                        analyst=analista_final, 
-                        month=mes, 
-                        year=ano
-                    )
-                    df_filtered = tratar_valores_df(df_filtered)
-                    st.session_state.preview_data = df_filtered
-                    st.session_state.form_data = {'tipo': tipo, 'analista': analista_final, 'mes': mes, 'ano': ano}
-                    st.success(f'✅ Dados carregados com sucesso! {len(df_filtered)} empresas encontradas para {analista_final}.')
-                except services.ReportProcessingError as e:
-                    st.error(f"❌ Erro de processamento: {e}")
-            st.session_state.preview_trigger = False
-
-        # Visualização dos dados
-        if 'preview_data' in st.session_state and st.session_state.preview_data is not None:
-            df_preview = st.session_state.preview_data
-            if not df_preview.empty:
-                title = f"Dados para {tipo} - {mes}/{ano} - {analista_final}"
-                st.subheader(title)
-                st.dataframe(df_preview.reset_index(drop=True), use_container_width=True)
-                # Pré-visualização do e-mail
-                st.subheader("Pré-visualização do E-mail")
-                dados_empresa = df_preview.iloc[0].to_dict()
-                # Sanitizar campos
-                for k in dados_empresa:
-                    if dados_empresa[k] is None:
-                        dados_empresa[k] = "N/A"
-                if 'Email' in dados_empresa:
-                    dados_empresa['Email'] = safe_join_emails(dados_empresa['Email'])
-                render_email_preview(dados_empresa)
-    # Usar o analista selecionado
-    analista_final = analista
+    # Usar apenas session_state para parâmetros
+    analista_final = st.session_state.analyst
+    tipo = st.session_state.report_type
+    mes = st.session_state.month
+    ano = st.session_state.year
 
     # Verificar se o analista é válido
     if not analista_final or analista_final not in config.ANALISTAS:
@@ -213,10 +102,23 @@ def show_main_page() -> None:
         st.error("❌ Ano inválido. Selecione um ano válido.")
         return
 
+    # Função para sanitizar e-mails
+    def safe_join_emails(email_field):
+        if not email_field:
+            return ""
+        if isinstance(email_field, list):
+            return "; ".join(e.strip() for e in email_field if e)
+        return "; ".join([e.strip() for e in str(email_field).split(';') if e.strip()])
 
+    # Função para renderizar pré-visualização do e-mail
+    def render_email_preview(context):
+        env = Environment(loader=FileSystemLoader("templates"))
+        template = env.get_template("email_template.html")
+        html = template.render(**context)
+        components.html(html, height=400, scrolling=True)
 
     # Processar visualização de dados
-    if preview_submitted:
+    if st.session_state.get("preview_trigger"):
         with st.spinner("Carregando dados para visualização... Por favor, aguarde."):
             try:
                 df_filtered, df_preview = services.preview_dados(
@@ -225,89 +127,32 @@ def show_main_page() -> None:
                     month=mes, 
                     year=ano
                 )
-                # DRY: tratamento centralizado
                 df_filtered = tratar_valores_df(df_filtered)
                 st.session_state.preview_data = df_filtered
                 st.session_state.form_data = {'tipo': tipo, 'analista': analista_final, 'mes': mes, 'ano': ano}
                 st.success(f'✅ Dados carregados com sucesso! {len(df_filtered)} empresas encontradas para {analista_final}.')
             except services.ReportProcessingError as e:
                 st.error(f"❌ Erro de processamento: {e}")
-            except FileNotFoundError as e:
-                st.error(f"❌ Arquivo não encontrado: {e}")
-                st.info("💡 Verifique se os caminhos dos arquivos estão corretos e se os arquivos existem.")
-            except PermissionError as e:
-                st.error(f"❌ {str(e)}")
-                st.info("💡 Tente fechar outros programas que possam estar usando o arquivo e aguarde a sincronização completa do OneDrive/SharePoint.")
-            except ValueError as e:
-                st.error(f"❌ Erro de configuração: {e}")
-                st.info("💡 Verifique as configurações do relatório na aba 'Configurações'.")
-            except Exception as e:
-                st.error(f"❌ Erro inesperado: {e}")
-                registrar_log(f"Erro inesperado em preview: {e}")
+        st.session_state.preview_trigger = False
 
-
-    # Processar envio de e-mails
-    if send_submitted:
-        if 'preview_data' not in st.session_state or st.session_state.preview_data is None:
-            st.error("❌ Primeiro visualize os dados antes de enviar os e-mails.")
-            return
-        # Verificar se os dados de preview correspondem aos parâmetros atuais
-        form_data = st.session_state.get('form_data', {})
-        if (form_data.get('tipo') != tipo or 
-            form_data.get('analista') != analista_final or 
-            form_data.get('mes') != mes or 
-            form_data.get('ano') != ano):
-            st.error("❌ Os dados de visualização não correspondem aos parâmetros atuais. Visualize os dados novamente.")
-            return
-        with st.spinner("Processando relatórios e gerando e-mails... Por favor, aguarde."):
-            try:
-                # DRY: tratamento centralizado
-                df_email = st.session_state.preview_data.copy()
-                df_email = tratar_valores_df(df_email)
-                st.session_state.preview_data = df_email
-                # Montar e enviar e-mails para cada empresa, com tratamento de exceções/logs
-                results = []
-                for idx, row in df_email.iterrows():
-                    dados_empresa = row.to_dict()
-                    corpo = montar_corpo_email(dados_empresa, email_template)
-                    try:
-                        enviar_email(
-                            destinatario=dados_empresa.get('Email', ''),
-                            assunto=f"Relatório {tipo} - {dados_empresa.get('Empresa', '')}",
-                            corpo=corpo,
-                            anexos=[] # Adicionar lógica de anexos se necessário
-                        )
-                        status = 'sucesso'
-                        erro = ''
-                    except Exception as e:
-                        status = 'falha'
-                        erro = str(e)
-                        registrar_log(f"Erro ao enviar e-mail para {dados_empresa.get('Empresa', '')}: {e}")
-                        st.error(f"❌ Falha ao enviar e-mail para {dados_empresa.get('Empresa', '')}: {e}")
-                    results.append({
-                        'empresa': dados_empresa.get('Empresa', ''),
-                        'data': dados_empresa.get('Data', ''),
-                        'valor': dados_empresa.get('Valor', ''),
-                        'email': dados_empresa.get('Email', ''),
-                        'anexos_count': 0,
-                        'created_count': idx+1,
-                        'status': status,
-                        'erro': erro
-                    })
-                st.session_state.results = results
-                created_count = sum(1 for r in results if r['status'] == 'sucesso')
-                st.success(f'✅ {created_count} de {len(results)} e-mails foram gerados com sucesso! Verifique seu Outlook.')
-            except services.ReportProcessingError as e:
-                st.error(f"❌ Erro de processamento: {e}")
-            except FileNotFoundError as e:
-                st.error(f"❌ Arquivo não encontrado: {e}")
-                st.info("💡 Verifique se os caminhos dos arquivos estão corretos e se os arquivos existem.")
-            except ValueError as e:
-                st.error(f"❌ Erro de configuração: {e}")
-                st.info("💡 Verifique as configurações do relatório na aba 'Configurações'.")
-            except Exception as e:
-                st.error(f"❌ Erro inesperado: {e}")
-                registrar_log(f"Erro inesperado em envio: {e}")
+    # Visualização dos dados
+    if 'preview_data' in st.session_state and st.session_state.preview_data is not None:
+        df_preview = st.session_state.preview_data
+        if not df_preview.empty:
+            title = f"Dados para {tipo} - {mes}/{ano} - {analista_final}"
+            st.subheader(title)
+            st.dataframe(df_preview.reset_index(drop=True), use_container_width=True)
+            # Pré-visualização do e-mail
+            st.subheader("Pré-visualização do E-mail")
+            dados_empresa = df_preview.iloc[0].to_dict()
+            # Sanitizar campos
+            for k in dados_empresa:
+                if dados_empresa[k] is None:
+                    dados_empresa[k] = "N/A"
+            if 'Email' in dados_empresa:
+                dados_empresa['Email'] = safe_join_emails(dados_empresa['Email'])
+            render_email_preview(dados_empresa)
+    # Remover duplicação: não usar variáveis analista, tipo, mes, ano fora do session_state
 
 
     # Mostrar dados de visualização
