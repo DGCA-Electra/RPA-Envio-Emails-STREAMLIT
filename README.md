@@ -73,6 +73,17 @@ Este projeto automatiza o processo de envio de relatórios da Câmara de Comerci
    streamlit run app.py
    ```
 
+> **Nota de UI:** Os parâmetros de envio agora aparecem apenas no painel principal. A barra lateral (sidebar) contém apenas navegação e links rápidos.
+
+## 🖥️ Navegação e Layout
+
+- A navegação principal está na barra lateral (sidebar), com opções de "Envio de Relatórios" e "Configurações".
+- Todos os parâmetros de envio (tipo de relatório, analista, mês, ano) estão centralizados no painel principal.
+- Pré-visualização do e-mail é exibida como HTML renderizado.
+- Visualização de dados e KPIs organizados em colunas, com layout limpo e responsivo.
+
+> **Nota de UI:** Os parâmetros de envio agora aparecem apenas no painel principal. A barra lateral (sidebar) contém apenas navegação e links rápidos.
+
 3. **Acesse no navegador**:
    - A aplicação estará disponível em `http://localhost:8501`
 
