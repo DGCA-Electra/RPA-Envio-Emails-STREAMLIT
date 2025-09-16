@@ -1,20 +1,20 @@
 import streamlit as st
 import pandas as pd
-import config
-import services
+from config import config
+from src import services
 from mail.email_utils import montar_corpo_email, enviar_email
 import logging
 import openpyxl
 from typing import Dict, Any, Optional
 import os
 from utils.dataframe_utils import tratar_valores_df
-from config import REPORT_DISPLAY_COLUMNS
+from config.config import REPORT_DISPLAY_COLUMNS
 import streamlit.components.v1 as components
 from jinja2 import Environment, FileSystemLoader
 import json
 
 # Configuração básica de logging
-logging.basicConfig(filename='app.log', level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
+logging.basicConfig(filename='../logs/app.log', level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
 
 # Função para registrar logs
 def registrar_log(mensagem: str) -> None:
