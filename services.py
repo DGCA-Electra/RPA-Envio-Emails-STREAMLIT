@@ -18,7 +18,7 @@ try:
 except ImportError:
     WIN32_AVAILABLE = False
 
-from config import load_configs, MESES, build_report_paths, get_user_paths
+from config.config import load_configs, MESES, build_report_paths, get_user_paths
 from utils.security_utils import sanitize_html, sanitize_subject, is_safe_path, within_size_limit
 
 class ReportProcessingError(Exception):
