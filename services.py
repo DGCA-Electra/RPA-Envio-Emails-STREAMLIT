@@ -244,7 +244,7 @@ def _find_attachment(pdf_dir: str, filename: str, alternative_paths: Optional[Li
 # ENGINE DE TEMPLATES (carregamento/salvamento/renderização)
 # ==============================================================================
 
-TEMPLATES_JSON_PATH = "email_templates.json"
+TEMPLATES_JSON_PATH = "config/email_templates.json"
 
 def load_email_templates() -> Dict[str, Any]:
     try:
