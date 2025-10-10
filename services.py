@@ -855,7 +855,18 @@ def render_email_from_template(report_type: str, row: Dict[str, Any], common: Di
     # Seleção de variante
     selected, variant_name = resolve_variant({**report_cfg, 'id': report_type}, context)
     subject_tpl = selected.get('subject_template') or report_cfg.get('subject_template', '')
-    body_tpl = selected.get('body_html') or selected.get('body_html_credit') or selected.get('body_html_debit') or report_cfg.get('body_html', '')
+    
+    # --- INÍCIO DA NOVA LÓGICA PARA LFN001 ---
+    body_tpl = selected.get('body_html', '')
+    if report_type == 'LFN001':
+        situacao = str(row.get('Situacao', '')).strip()
+        if situacao == 'Crédito' and 'body_html_credit' in selected:
+            body_tpl = selected['body_html_credit']
+        elif situacao == 'Débito' and 'body_html_debit' in selected:
+            body_tpl = selected['body_html_debit']
+    # Se body_tpl ainda estiver vazio, tenta um fallback
+    if not body_tpl:
+        body_tpl = selected.get('body_html_credit') or selected.get('body_html_debit') or ''
     attachments_tpls = selected.get('attachments') or report_cfg.get('attachments', [])
 
     # Conversão amigável: aceitar {campo} e também {{ campo }}

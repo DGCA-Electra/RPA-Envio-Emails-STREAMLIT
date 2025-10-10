@@ -141,7 +141,19 @@ def show_main_page() -> None:
             st.subheader("Pré-visualização do E-mail")
             preview_limit = min(5, len(df_raw))
             for idx in range(preview_limit):
+                # Usa a linha de dados brutos (não formatados) para a lógica do template
                 dados_empresa = df_raw.iloc[idx].to_dict()
+
+                # --- INÍCIO DA NOVA LÓGICA DE FORMATAÇÃO ---
+                # Formata os valores monetários ANTES de enviar para o template
+                if 'ValorLiquidacao' in dados_empresa:
+                    dados_empresa['ValorLiquidacao'] = services._format_currency(dados_empresa['ValorLiquidacao'])
+                if 'ValorLiquidado' in dados_empresa:
+                    dados_empresa['ValorLiquidado'] = services._format_currency(dados_empresa['ValorLiquidado'])
+                if 'ValorInadimplencia' in dados_empresa:
+                    dados_empresa['ValorInadimplencia'] = services._format_currency(dados_empresa['ValorInadimplencia'])
+                # --- FIM DA NOVA LÓGICA DE FORMATAÇÃO ---
+
                 if 'Email' in dados_empresa:
                     dados_empresa['Email'] = safe_join_emails(dados_empresa['Email'])
                 
