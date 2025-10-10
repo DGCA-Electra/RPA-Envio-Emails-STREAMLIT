@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
-from config import config
-from src import services
+import config.config as config
+import services
 from mail.email_utils import montar_corpo_email, enviar_email
 import logging
 import openpyxl
@@ -13,8 +13,17 @@ import streamlit.components.v1 as components
 from jinja2 import Environment, FileSystemLoader
 import json
 
-# Configuração básica de logging
-logging.basicConfig(filename='../logs/app.log', level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
+# --- Configuração de Logging ---
+# Define o caminho para o diretório de logs
+LOG_DIR = 'logs'
+# Cria o diretório se ele não existir
+os.makedirs(LOG_DIR, exist_ok=True)
+# Define o caminho completo para o arquivo de log
+LOG_FILE = os.path.join(LOG_DIR, 'app.log')
+
+# Configuração básica de logging usando o caminho correto
+logging.basicConfig(filename=LOG_FILE, level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
+# -----------------------------
 
 # Função para registrar logs
 def registrar_log(mensagem: str) -> None:
