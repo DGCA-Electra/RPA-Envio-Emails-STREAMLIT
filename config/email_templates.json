@@ -64,8 +64,8 @@
     "attachments": [
       "https://.../{ano}/{ano}{mes}/Liquidação%20Financeira/LFN001/{arquivo}.pdf"
     ],
-    "body_html_credit": "<p>Prezado(a),</p><p>Segue anexo o relatório LFN001, referente ao resultado da liquidação financeira de <strong>{mesext}/{ano}</strong>. Este relatório demonstra a redução ocorrida no crédito decorrente do rateio das inadimplências.</p><p>Valor a Liquidar do Agente: <strong>R$ {Vliquidar}</strong>.<br>Valor Liquidado do Agente: <strong>R$ {Vliquidado}</strong>.<br>Participação no rateio de inadimplências: <strong>R$ {VPagente}</strong>.</p><p>Atenciosamente,<br>{assinatura}</p>",
-    "body_html_debit": "<p>Prezado(a),</p><p>Segue anexo o relatório LFN001, referente ao resultado da liquidação financeira de <strong>{mesext}/{ano}</strong>. Este relatório demonstra o valor debitado na liquidação financeira.</p><p>Valor a Liquidar do Agente: <strong>R$ {Vliquidar}</strong>.<br>Valor Liquidado do Agente: <strong>R$ {Vliquidado}</strong>.<br>Inadimplência: <strong>R$ {VPagente}</strong>.</p><p>Atenciosamente,<br>{assinatura}</p>",
+    "body_html_credit": "<p>Prezado(a),</p><p>Segue anexo o relatório LFN001, referente ao resultado da liquidação financeira de <strong>{mesext}/{ano}</strong>. Este relatório demonstra a redução ocorrida no crédito decorrente do rateio das inadimplências.</p><p>Valor a Liquidar do Agente: <strong>{ValorLiquidacao}</strong>.<br>Valor Liquidado do Agente: <strong>{ValorLiquidado}</strong>.<br>Participação no rateio de inadimplências: <strong>{ValorInadimplencia}</strong>.</p><p>Atenciosamente,<br>{assinatura}</p>",
+    "body_html_debit": "<p>Prezado(a),</p><p>Segue anexo o relatório LFN001, referente ao resultado da liquidação financeira de <strong>{mesext}/{ano}</strong>. Este relatório demonstra o valor debitado na liquidação financeira.</p><p>Valor a Liquidar do Agente: <strong>{ValorLiquidacao}</strong>.<br>Valor Liquidado do Agente: <strong>{ValorLiquidado}</strong>.<br>Inadimplência: <strong>{ValorInadimplencia}</strong>.</p><p>Atenciosamente,<br>{assinatura}</p>",
     "placeholders": [
       "empresa",
       "mes",

@@ -157,12 +157,27 @@ def show_main_page() -> None:
     # Função para renderizar pré-visualização do e-mail
     def render_email_preview(subject: str, body_html: str):
         html = f"""
-        <div style='font-family: Inter, Arial, sans-serif'>
-            <h4>{subject}</h4>
-            <hr/>
-            {body_html}
-        </div>
-        """
+    <html>
+      <head>
+        <style>
+          body {{
+            color: black;
+            font-family: Inter, Arial, sans-serif;
+          }}
+          @media (prefers-color-scheme: dark) {{
+            body {{
+              color: white;
+            }}
+          }}
+        </style>
+      </head>
+      <body>
+        <h4>{subject}</h4>
+        <hr/>
+        {body_html}
+      </body>
+    </html>
+    """
         components.html(html, height=400, scrolling=True)
 
     # Processar visualização de dados
