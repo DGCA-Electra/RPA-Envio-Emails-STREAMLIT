@@ -52,18 +52,18 @@
     "LFRCAP001": {
         "sheet_dados": "LFRCAP002 - Liquidação de Reser",
         "sheet_contatos": "Planilha1",
-        "header_row": 30,
-        "data_columns": "Agente:Empresa,Data do Débito:Data,Valor do Débito (R$):Valor",
+        "header_row": 43,
+        "data_columns": "Agente Representado:Empresa,Valor a Liquidar (R$):Valor",
         "path_template": {
             "excel_dados": "{sharepoint_root}/{ano}/{ano_mes}/Liquidação de Reserva de Capacidade/LFRCAP002/ELECTRA_ENERGY_LFRCAP002_{mes_abrev}_{ano_2dig}.xlsx",
             "pdfs_dir": "{sharepoint_root}/{ano}/{ano_mes}/Liquidação de Reserva de Capacidade/LFRCAP001"
         }
     },
     "RCAP002": {
-        "sheet_dados": "Sheet1",
-        "sheet_contatos": "Planilha1",
-        "header_row": 4,
-        "data_columns": "Sigla do Agente:Empresa,\"(S) ERCAP_C am\":Valor,Data:Data",
+    "sheet_dados": "Sheet1",
+    "sheet_contatos": "Planilha1",
+    "header_row": 4,
+    "data_columns": "Sigla do Agente:Empresa,(S) ERCAP_C am:Valor, Data:Data",
         "path_template": {
             "excel_dados": "{sharepoint_root}/{ano}/{ano_mes}/Reserva de Capacidade/RCAP002 - Consulta Dinamica/RCAP002 {mes_abrev}.{ano_2dig}.xlsx",
             "pdfs_dir": "{sharepoint_root}/{ano}/{ano_mes}/Reserva de Capacidade/RCAP002"
