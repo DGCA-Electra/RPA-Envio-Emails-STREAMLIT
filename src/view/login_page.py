@@ -21,7 +21,6 @@ msal_app = msal.ConfidentialClientApplication(
 )
 
 def get_auth_url():
-    """Gera a URL de autorização da Microsoft."""
     try:
         auth_url = msal_app.get_authorization_request_url(
             SCOPES,
