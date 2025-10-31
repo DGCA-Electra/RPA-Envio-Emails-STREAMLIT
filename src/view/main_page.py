@@ -151,9 +151,41 @@ def show_main_page() -> None:
         col2.metric("E-mails Criados", total_created)
 
         df_results = pd.DataFrame(results)
-        df_to_show = df_results[['empresa', 'data', 'valor', 'email', 'anexos_count']].rename(columns={
-            'empresa': 'Empresa', 'data': 'Data', 'valor': 'Valor', 'email': 'E-mail', 'anexos_count': 'Anexos'
+        
+        base_columns = ['empresa', 'email', 'anexos_count']
+        display_names = {
+            'empresa': 'Empresa',
+            'email': 'E-mail',
+            'anexos_count': 'Anexos',
+            'data': 'Data',
+            'valor': 'Valor',
+            'data_liquidacao': 'Data Liquidação',
+            'dataaporte': 'Data Aporte',
+            'ValorLiquidacao': 'Valor Liquidação',
+            'ValorLiquidado': 'Valor Liquidado',
+            'ValorInadimplencia': 'Valor Inadimplência',
+            'situacao': 'Situação'
+        }
+        
+        report_specific_columns = {
+            'SUM001': ['data_liquidacao', 'valor', 'situacao'],
+            'LFN001': ['data', 'ValorLiquidacao', 'ValorLiquidado', 'ValorInadimplencia'],
+            'GFN001': ['dataaporte', 'valor'],
+            'LFRES001': ['data', 'valor'],
+            'LFRCAP001': ['dataaporte', 'valor'],
+            'RCAP002': ['dataaporte', 'valor']
+        }
+        
+        report_type = st.session_state.report_type
+        specific_columns = report_specific_columns.get(report_type, ['data', 'valor'])
+        
+        columns_to_show = base_columns + specific_columns
+        
+        existing_columns = [col for col in columns_to_show if col in df_results.columns]
+        df_to_show = df_results[existing_columns].rename(columns={
+            col: display_names.get(col, col) for col in existing_columns
         })
+        
         st.dataframe(df_to_show, use_container_width=True, hide_index=True)
         
         if st.button("🗑️ Limpar Resultados", key="limpar_results"):
