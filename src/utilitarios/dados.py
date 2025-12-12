@@ -1,8 +1,7 @@
 import pandas as pd
 from typing import Dict, Any, Optional
 import re
-
-def parse_brazilian_number(val: Any) -> float:
+def converter_numero_br(val: Any) -> float:
     """Converte 'R$ 1.234,56' ou '(1.234,56)' ou 1234.56 para float. Retorna 0.0 em erro."""
     if val is None:
         return 0.0
@@ -24,15 +23,13 @@ def parse_brazilian_number(val: Any) -> float:
         return -n if is_neg else n
     except Exception:
         return 0.0
-
-def format_currency(value: Any) -> str:
+def formatar_moeda(value: Any) -> str:
     try:
         val = float(value)
         return f"R$ {val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     except (ValueError, TypeError):
         return "R$ 0,00"
-
-def format_date(date_value: Any) -> str:
+def formatar_data(date_value: Any) -> str:
     """Formata uma data para o formato brasileiro (dd/mm/aaaa)."""
     try:
         if date_value is None or pd.isna(date_value):

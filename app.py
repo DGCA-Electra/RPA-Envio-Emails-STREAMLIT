@@ -5,9 +5,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from src.view.main_page import show_main_page
-from src.view.config_page import show_config_page
-from src.view.login_page import show_login_page
+from src.interface.principal import exibir_pagina_principal
+from src.interface.configuracao import show_config_page
+from src.interface.login import show_login_page
 
 LOG_DIR = 'logs'
 os.makedirs(LOG_DIR, exist_ok=True)
@@ -54,7 +54,7 @@ def main() -> None:
         page = st.sidebar.radio("Escolha a página:", page_options, label_visibility="collapsed", key="main_sidebar_radio")
 
         if page == "Envio de Relatórios":
-            show_main_page()
+            exibir_pagina_principal()
         elif page == "Configurações":
             show_config_page()
 
